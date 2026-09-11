@@ -2,115 +2,262 @@ import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle, TrendingUp, FlaskConical, MapPin,
   Wifi, WifiOff, Bell, ChevronRight, Map, Activity,
-  ArrowUpRight,
+  ArrowUpRight, Leaf,
 } from 'lucide-react'
 import { useCaseStore } from '../hooks/useCaseStore'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import StatusBadge from '../components/ui/StatusBadge'
-import { riskLevelHex, riskLevelClasses } from '../utils/riskEngine'
+import { riskLevelHex } from '../utils/riskEngine'
 import { formatDateTime } from '../utils/formatters'
 
-// ─── KPI Card ────────────────────────────────────────────────────────────────
-function KPICard({ icon: Icon, label, value, sub, color, onClick }) {
+// ─── Organic KPI card ─────────────────────────────────────────────────────────
+function KPICard({ icon: Icon, label, value, sub, iconBg, valueCls, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`card p-5 text-left w-full transition-shadow hover:shadow-md ${onClick ? 'cursor-pointer' : 'cursor-default'}`}
+      className={`text-left w-full transition-all duration-300 ${onClick ? 'cursor-pointer' : 'cursor-default'} hover:-translate-y-0.5`}
+      style={{
+        background: 'rgba(255,255,255,0.72)',
+        backdropFilter: 'blur(8px)',
+        borderRadius: '1.25rem',
+        border: '1px solid rgba(222,216,207,0.6)',
+        boxShadow: '0 2px 12px -2px rgba(93,112,82,0.08)',
+        padding: '1.1rem',
+      }}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon className="w-4.5 h-4.5" />
+      <div className="flex items-start justify-between mb-2.5">
+        <div
+          className="w-9 h-9 flex items-center justify-center"
+          style={{ background: iconBg, borderRadius: '0.875rem' }}
+        >
+          <Icon className="w-4 h-4" style={{ color: 'inherit' }} />
         </div>
-        {onClick && <ArrowUpRight className="w-3.5 h-3.5 text-slate-300" />}
+        {onClick && <ArrowUpRight className="w-3.5 h-3.5" style={{ color: '#a0a08c' }} />}
       </div>
-      <p className="text-2xl font-black text-slate-900 tabular-nums">{value}</p>
-      <p className="text-xs font-semibold text-slate-600 mt-0.5">{label}</p>
-      {sub && <p className="text-[10px] text-slate-400 mt-1">{sub}</p>}
+      <p className={`text-2xl font-black tabular-nums leading-none ${valueCls}`}>{value}</p>
+      <p className="text-xs font-semibold mt-1" style={{ color: '#5a5a50' }}>{label}</p>
+      {sub && <p className="text-[10px] mt-0.5" style={{ color: '#a0a08c' }}>{sub}</p>}
+    </button>
+  )
+}
+
+// ─── Case row ─────────────────────────────────────────────────────────────────
+function CaseRow({ c, isPrimary, onClick }) {
+  const hex = riskLevelHex(c.risk.level)
+  return (
+    <button
+      onClick={onClick}
+      className="w-full text-left px-4 py-3 transition-all duration-200 hover:bg-black/[0.03]"
+      style={{
+        background: isPrimary
+          ? 'linear-gradient(90deg, rgba(220,38,38,0.08) 0%, rgba(220,38,38,0.02) 100%)'
+          : 'transparent',
+        borderLeft: isPrimary ? '4px solid #dc2626' : '4px solid transparent',
+        borderBottom: '1px solid rgba(222,216,207,0.5)',
+      }}
+    >
+      {/* Mobile */}
+      <div className="md:hidden flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold" style={{ color: '#a0a08c' }}>{c.id}</span>
+            {isPrimary && (
+              <span
+                className="text-[9px] font-black uppercase px-1.5 py-0.5"
+                style={{
+                  color: '#a85448',
+                  background: 'rgba(168,84,72,0.1)',
+                  borderRadius: '99px',
+                  border: '1px solid rgba(168,84,72,0.2)',
+                }}
+              >
+                Primary
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-bold mt-0.5" style={{ color: '#2c2c24' }}>{c.animalId}</p>
+          <p className="text-xs" style={{ color: '#78786c' }}>{c.village} · {c.syndrome}</p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <StatusBadge status={c.status} size="sm" />
+            {c.mortality > 0 && (
+              <span className="text-[10px] font-bold" style={{ color: '#dc2626' }}>
+                ✕{c.mortality} mortality
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xl font-black tabular-nums" style={{ color: hex }}>{c.risk.score}</p>
+          <p className="text-[9px] font-black uppercase tracking-wide" style={{ color: hex }}>
+            {c.risk.level}
+          </p>
+        </div>
+      </div>
+
+      {/* Desktop */}
+      <div className="hidden md:grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-3 items-center">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold" style={{ color: '#a0a08c' }}>{c.id}</span>
+            {isPrimary && (
+              <span
+                className="text-[9px] font-black uppercase px-1.5 py-0.5"
+                style={{
+                  color: '#a85448',
+                  background: 'rgba(168,84,72,0.1)',
+                  borderRadius: '99px',
+                  border: '1px solid rgba(168,84,72,0.2)',
+                }}
+              >
+                Primary
+              </span>
+            )}
+          </div>
+          <p className="text-sm font-semibold truncate" style={{ color: '#2c2c24' }}>{c.animalId}</p>
+          <p className="text-xs" style={{ color: '#78786c' }}>{c.species}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate" style={{ color: '#2c2c24' }}>{c.village}</p>
+          <p className="text-xs truncate" style={{ color: '#78786c' }}>{c.syndrome}</p>
+        </div>
+        <div className="text-center w-16">
+          <p className="text-lg font-black tabular-nums leading-none" style={{ color: hex }}>{c.risk.score}</p>
+          <p className="text-[9px] font-black uppercase tracking-wide" style={{ color: hex }}>{c.risk.level}</p>
+        </div>
+        <div className="text-center w-14">
+          {c.mortality > 0
+            ? <span className="text-xs font-bold" style={{ color: '#dc2626' }}>✕{c.mortality}</span>
+            : <span className="text-xs" style={{ color: '#a0a08c' }}>—</span>
+          }
+        </div>
+        <div><StatusBadge status={c.status} size="sm" /></div>
+        <ChevronRight className="w-4 h-4" style={{ color: '#ded8cf' }} />
+      </div>
     </button>
   )
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const navigate = useNavigate()
+  const navigate        = useNavigate()
   const { casesByRisk, kpis } = useCaseStore()
-  const { isOnline } = useOnlineStatus()
+  const { isOnline }    = useOnlineStatus()
 
-  // Show top 10 by risk
   const priorityCases = casesByRisk.slice(0, 10)
 
   return (
-    <div className="min-h-full">
-      {/* ── Page header ──────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-white border-b border-surface-border px-6 py-4">
+    <div className="min-h-full animate-fadeIn">
+
+      {/* ── Sticky header ───────────────────────────────────────────── */}
+      <header
+        className="sticky top-0 z-20 px-6 py-4"
+        style={{
+          background: 'rgba(253,252,248,0.88)',
+          backdropFilter: 'blur(16px)',
+          borderBottom: '1px solid rgba(222,216,207,0.6)',
+          boxShadow: '0 2px 16px rgba(93,112,82,0.06)',
+        }}
+      >
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">
-              Veterinary Intelligence Dashboard
+            <h1
+              className="text-lg font-bold leading-tight"
+              style={{ fontFamily: "'Fraunces', serif", color: '#2c2c24', letterSpacing: '-0.02em' }}
+            >
+              Veterinary Intelligence
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs mt-0.5" style={{ color: '#78786c' }}>
               Junnar Taluk, Pune · Maharashtra
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg
-              ${isOnline ? 'text-green-700 bg-green-50' : 'text-amber-700 bg-amber-50'}`}>
-              {isOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-              {isOnline ? 'Online' : 'Offline'}
+            <div
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5"
+              style={{
+                color: isOnline ? '#5d7052' : '#c18c5d',
+                background: isOnline ? 'rgba(93,112,82,0.1)' : 'rgba(193,140,93,0.1)',
+                borderRadius: '99px',
+              }}
+            >
+              {isOnline
+                ? <><Wifi className="w-3 h-3" /> Online</>
+                : <><WifiOff className="w-3 h-3" /> Offline</>
+              }
             </div>
-            <button className="relative p-2 rounded-lg hover:bg-slate-100 transition-colors">
-              <Bell className="w-4 h-4 text-slate-600" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />
+            <button
+              className="relative p-2 transition-colors"
+              style={{ borderRadius: '0.75rem' }}
+            >
+              <Bell className="w-4 h-4" style={{ color: '#78786c' }} />
+              <span
+                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+                style={{ background: '#dc2626' }}
+              />
             </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* ── CRITICAL ALERT BANNER ─────────────────────────────────── */}
-        <div className="flex items-center gap-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-4 h-4 text-red-600" />
+      <div className="max-w-7xl mx-auto px-5 py-5 space-y-5">
+
+        {/* ── Critical alert banner ─────────────────────────────────── */}
+        <div
+          className="flex items-center gap-4 px-4 py-3 animate-slideUp"
+          style={{
+            background: 'linear-gradient(135deg, rgba(168,84,72,0.08), rgba(220,38,38,0.05))',
+            border: '1px solid rgba(168,84,72,0.25)',
+            borderRadius: '1.25rem',
+          }}
+        >
+          <div
+            className="w-8 h-8 flex items-center justify-center shrink-0"
+            style={{ background: 'rgba(168,84,72,0.15)', borderRadius: '0.75rem' }}
+          >
+            <AlertTriangle className="w-4 h-4" style={{ color: '#a85448' }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-red-800">
+            <p className="text-sm font-bold" style={{ color: '#7a3028' }}>
               Active Outbreak Alert · Khandala Cluster
             </p>
-            <p className="text-xs text-red-600 mt-0.5">
-              High-risk syndrome detected. Vesicular / Podal — COW-1024 · 88/100 Critical. Veterinary investigation required.
+            <p className="text-xs mt-0.5" style={{ color: '#a85448' }}>
+              Vesicular / Podal — COW-1024 · <strong>88/100 CRITICAL</strong> · Veterinary investigation required
             </p>
           </div>
           <button
             onClick={() => navigate('/cases/CASE-1042')}
-            className="shrink-0 text-xs font-semibold text-red-700 hover:text-red-900 flex items-center gap-1"
+            className="shrink-0 text-xs font-bold flex items-center gap-1 transition-opacity hover:opacity-80"
+            style={{ color: '#a85448' }}
           >
             View <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* ── KPI CARDS ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── KPI cards ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KPICard
             icon={AlertTriangle}
             label="Critical Cases"
             value={kpis.criticalCases}
-            sub="Immediate attention required"
-            color="bg-red-100 text-red-600"
+            sub="Immediate attention"
+            iconBg="rgba(168,84,72,0.12)"
+            valueCls="text-red-700"
             onClick={() => navigate('/cases/all')}
           />
           <KPICard
             icon={TrendingUp}
             label="High Risk"
             value={kpis.highRiskCases}
-            sub="Elevated disease risk"
-            color="bg-orange-100 text-orange-600"
+            sub="Elevated risk"
+            iconBg="rgba(193,140,93,0.15)"
+            valueCls="text-orange-600"
           />
           <KPICard
             icon={Activity}
             label="Active Clusters"
             value={kpis.activeClusters}
             sub="Khandala · Khed"
-            color="bg-violet-100 text-violet-600"
+            iconBg="rgba(109,40,217,0.1)"
+            valueCls="text-violet-700"
             onClick={() => navigate('/map')}
           />
           <KPICard
@@ -118,191 +265,165 @@ export default function Dashboard() {
             label="Pending Lab"
             value={kpis.pendingLab}
             sub="Awaiting results"
-            color="bg-cyan-100 text-cyan-600"
+            iconBg="rgba(8,145,178,0.1)"
+            valueCls="text-cyan-700"
           />
         </div>
 
-        {/* ── MAIN GRID ─────────────────────────────────────────────── */}
-        <div className="grid lg:grid-cols-3 gap-6">
+        {/* ── Main grid ─────────────────────────────────────────────── */}
+        <div className="grid lg:grid-cols-3 gap-5">
 
-          {/* Priority Cases — takes 2/3 width */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* Priority cases */}
+          <div className="lg:col-span-2 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="section-title">Priority Cases</h2>
-              <span className="text-xs text-slate-400">Sorted by risk score</span>
+              <h2
+                className="section-title"
+                style={{ fontFamily: "'Fraunces', serif", color: '#2c2c24' }}
+              >
+                Priority Cases
+              </h2>
+              <span className="text-xs" style={{ color: '#a0a08c' }}>Sorted by risk score</span>
             </div>
 
-            <div className="card overflow-hidden">
-              {/* Table header */}
-              <div className="hidden md:grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-3 px-4 py-2.5
-                              bg-slate-50 border-b border-surface-border text-[10px] font-semibold
-                              text-slate-500 uppercase tracking-widest">
-                <span>Case / Animal</span>
-                <span>Location · Syndrome</span>
-                <span className="text-center">Risk</span>
-                <span className="text-center">Mortality</span>
-                <span>Status</span>
-                <span />
+            <div
+              className="overflow-hidden"
+              style={{
+                background: 'rgba(255,255,255,0.75)',
+                borderRadius: '1.25rem',
+                border: '1px solid rgba(222,216,207,0.6)',
+                boxShadow: '0 2px 16px -2px rgba(93,112,82,0.08)',
+              }}
+            >
+              {/* Table header (desktop) */}
+              <div
+                className="hidden md:grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-3 px-4 py-2.5"
+                style={{
+                  background: 'rgba(240,235,229,0.5)',
+                  borderBottom: '1px solid rgba(222,216,207,0.6)',
+                }}
+              >
+                {['Case / Animal', 'Location · Syndrome', 'Risk', 'Mortality', 'Status', ''].map((h, i) => (
+                  <span
+                    key={i}
+                    className="text-[9px] font-black uppercase tracking-widest"
+                    style={{ color: '#a0a08c', textAlign: i === 2 || i === 3 ? 'center' : 'left' }}
+                  >
+                    {h}
+                  </span>
+                ))}
               </div>
 
-              {/* Rows */}
-              <div className="divide-y divide-surface-border">
-                {priorityCases.map((c, i) => {
-                  const hex      = riskLevelHex(c.risk.level)
-                  const isPrimary = c.id === 'CASE-1042'
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => navigate(`/cases/${c.id}`)}
-                      className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors
-                        ${isPrimary ? 'bg-red-50/60 hover:bg-red-50' : ''}`}
-                    >
-                      {/* Mobile layout */}
-                      <div className="md:hidden flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-slate-500">{c.id}</span>
-                            {isPrimary && (
-                              <span className="text-[9px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full uppercase">
-                                Primary
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-bold text-slate-900">{c.animalId}</p>
-                          <p className="text-xs text-slate-500">{c.village} · {c.syndrome}</p>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <StatusBadge status={c.status} size="sm" />
-                            {c.mortality > 0 && (
-                              <span className="text-[10px] font-semibold text-red-600">
-                                ✕{c.mortality} mortality
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-xl font-black tabular-nums" style={{ color: hex }}>
-                            {c.risk.score}
-                          </p>
-                          <p className="text-[10px] font-bold uppercase" style={{ color: hex }}>
-                            {c.risk.level}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Desktop layout */}
-                      <div className="hidden md:grid grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-3 items-center">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500">{c.id}</span>
-                            {isPrimary && (
-                              <span className="text-[9px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full uppercase">
-                                Primary
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm font-semibold text-slate-900 truncate">{c.animalId}</p>
-                          <p className="text-xs text-slate-500">{c.species}</p>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-700 truncate">{c.village}</p>
-                          <p className="text-xs text-slate-500 truncate">{c.syndrome}</p>
-                        </div>
-                        <div className="text-center w-16">
-                          <p className="text-lg font-black tabular-nums leading-none" style={{ color: hex }}>
-                            {c.risk.score}
-                          </p>
-                          <p className="text-[9px] font-bold uppercase tracking-wide" style={{ color: hex }}>
-                            {c.risk.level}
-                          </p>
-                        </div>
-                        <div className="text-center w-16">
-                          {c.mortality > 0
-                            ? <span className="text-xs font-semibold text-red-600">✕{c.mortality}</span>
-                            : <span className="text-xs text-slate-400">—</span>
-                          }
-                        </div>
-                        <div>
-                          <StatusBadge status={c.status} size="sm" />
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-300" />
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+              {priorityCases.map((c) => (
+                <CaseRow
+                  key={c.id}
+                  c={c}
+                  isPrimary={c.id === 'CASE-1042'}
+                  onClick={() => navigate(`/cases/${c.id}`)}
+                />
+              ))}
             </div>
           </div>
 
-          {/* Right panel — Map preview + stats */}
+          {/* Right panel */}
           <div className="space-y-4">
-            {/* Map preview card */}
-            <div className="card overflow-hidden">
-              <div className="px-4 py-3 border-b border-surface-border flex items-center justify-between">
+            {/* Map preview */}
+            <div
+              className="overflow-hidden"
+              style={{
+                background: 'rgba(255,255,255,0.75)',
+                borderRadius: '1.25rem',
+                border: '1px solid rgba(222,216,207,0.6)',
+                boxShadow: '0 2px 12px -2px rgba(93,112,82,0.08)',
+              }}
+            >
+              <div
+                className="px-4 py-3 flex items-center justify-between"
+                style={{ borderBottom: '1px solid rgba(222,216,207,0.5)' }}
+              >
                 <h3 className="section-title">Risk Map</h3>
                 <button
                   onClick={() => navigate('/map')}
-                  className="text-xs text-brand-600 font-semibold flex items-center gap-1 hover:text-brand-700"
+                  className="text-xs font-bold flex items-center gap-1 transition-opacity hover:opacity-70"
+                  style={{ color: '#5d7052' }}
                 >
-                  <Map className="w-3.5 h-3.5" />
-                  Full Map
+                  <Map className="w-3.5 h-3.5" /> Full Map
                 </button>
               </div>
               <div
-                className="h-48 bg-gradient-to-br from-slate-100 to-slate-200 flex flex-col
-                           items-center justify-center cursor-pointer hover:from-brand-50 hover:to-brand-100 transition-colors"
+                className="h-48 flex flex-col items-center justify-center cursor-pointer transition-all duration-300"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(93,112,82,0.08), rgba(93,112,82,0.04))',
+                }}
                 onClick={() => navigate('/map')}
               >
-                <MapPin className="w-8 h-8 text-brand-400 mb-2" />
-                <p className="text-sm font-semibold text-slate-600">View Live Risk Map</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <div
+                  className="w-12 h-12 flex items-center justify-center mb-2"
+                  style={{ background: 'rgba(93,112,82,0.12)', borderRadius: '50%' }}
+                >
+                  <MapPin className="w-6 h-6" style={{ color: '#5d7052' }} />
+                </div>
+                <p className="text-sm font-semibold" style={{ color: '#4e5f45' }}>View Live Risk Map</p>
+                <p className="text-xs mt-1" style={{ color: '#78786c' }}>
                   {kpis.criticalCases} critical · {kpis.activeClusters} clusters
                 </p>
               </div>
             </div>
 
-            {/* Cluster summary */}
-            <div className="card p-4">
+            {/* Active cluster summary */}
+            <div
+              className="p-4"
+              style={{
+                background: 'rgba(255,255,255,0.75)',
+                borderRadius: '1.25rem',
+                border: '1px solid rgba(222,216,207,0.6)',
+                boxShadow: '0 2px 12px -2px rgba(93,112,82,0.08)',
+              }}
+            >
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#dc2626' }} />
                 <h3 className="section-title">Active Cluster</h3>
               </div>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Cluster ID</span>
-                  <span className="font-semibold text-slate-800">CLU-JUN-01</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Primary village</span>
-                  <span className="font-semibold text-slate-800">Khandala</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Cases in cluster</span>
-                  <span className="font-bold text-red-600">5</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Highest risk</span>
-                  <span className="font-black text-red-600">88 · CRITICAL</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Protection zone</span>
-                  <span className="font-semibold text-slate-800">3 km</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Surveillance zone</span>
-                  <span className="font-semibold text-slate-800">10 km</span>
-                </div>
+                {[
+                  { label: 'Cluster ID',        value: 'CLU-JUN-01' },
+                  { label: 'Primary village',   value: 'Khandala' },
+                  { label: 'Cases in cluster',  value: '5', highlight: true },
+                  { label: 'Highest risk',      value: '88 · CRITICAL', danger: true },
+                  { label: 'Protection zone',   value: '3 km' },
+                  { label: 'Surveillance zone', value: '10 km' },
+                ].map(({ label, value, highlight, danger }) => (
+                  <div key={label} className="flex justify-between text-xs">
+                    <span style={{ color: '#78786c' }}>{label}</span>
+                    <span
+                      className="font-semibold"
+                      style={{
+                        color: danger ? '#a85448' : highlight ? '#dc2626' : '#2c2c24',
+                        fontWeight: highlight || danger ? 800 : 600,
+                      }}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
               </div>
               <button
                 onClick={() => navigate('/map')}
-                className="btn-primary w-full mt-4 justify-center text-xs"
+                className="btn-primary w-full justify-center mt-4 text-xs"
               >
-                <MapPin className="w-3.5 h-3.5" />
-                View on Map
+                <MapPin className="w-3.5 h-3.5" /> View on Map
               </button>
             </div>
 
             {/* Recent activity */}
-            <div className="card p-4">
+            <div
+              className="p-4"
+              style={{
+                background: 'rgba(255,255,255,0.75)',
+                borderRadius: '1.25rem',
+                border: '1px solid rgba(222,216,207,0.6)',
+                boxShadow: '0 2px 12px -2px rgba(93,112,82,0.08)',
+              }}
+            >
               <h3 className="section-title mb-3">Recent Activity</h3>
               <div className="space-y-3">
                 {casesByRisk.slice(0, 4).map(c => (
@@ -316,12 +437,18 @@ export default function Dashboard() {
                       style={{ background: riskLevelHex(c.risk.level) }}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 group-hover:text-brand-700 truncate">
+                      <p
+                        className="text-xs font-semibold truncate transition-colors"
+                        style={{ color: '#2c2c24' }}
+                      >
                         {c.animalId} · {c.village}
                       </p>
-                      <p className="text-[10px] text-slate-400">{c.id}</p>
+                      <p className="text-[10px]" style={{ color: '#a0a08c' }}>{c.id}</p>
                     </div>
-                    <span className="text-[10px] font-bold shrink-0" style={{ color: riskLevelHex(c.risk.level) }}>
+                    <span
+                      className="text-[10px] font-black shrink-0"
+                      style={{ color: riskLevelHex(c.risk.level) }}
+                    >
                       {c.risk.score}
                     </span>
                   </button>

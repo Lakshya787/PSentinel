@@ -1,75 +1,386 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ─── Tailwind v4 ───────────────────────────────────────────────────────────── */
+@import "tailwindcss";
 
-/* ─── Base ─────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
+/* ─── Google Fonts (loaded via HTML, declared here for awareness) ────────────── */
+/* Fraunces (display/headings) + Nunito (body) */
 
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+/* ═══════════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — Organic / Natural
+   Philosophy: Wabi-sabi. Earth-drawn. Tactile. Grounded.
+   Brand: Moss Green (replaces indigo). Secondary: Terracotta. Surface: Rice Paper.
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@theme {
 
-body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #0f172a;
-  background-color: #f8fafc;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* ── Typography ────────────────────────────────────────────────────────────── */
+  --font-sans:   'Nunito', system-ui, -apple-system, sans-serif;
+  --font-serif:  'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono:   'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  /* ── Brand — Moss Green (was indigo) ──────────────────────────────────────── */
+  --color-brand-50:  #f0f4ee;
+  --color-brand-100: #dce6d8;
+  --color-brand-200: #b9cdb2;
+  --color-brand-300: #93b08b;
+  --color-brand-400: #6f9368;
+  --color-brand-500: #5d7052;  /* Primary Moss Green */
+  --color-brand-600: #4e5f45;
+  --color-brand-700: #3e4c37;
+  --color-brand-800: #30392a;
+  --color-brand-900: #232b1e;
+  --color-brand-950: #151a12;
+
+  /* ── Surface — Rice Paper / Stone / Timber ────────────────────────────────── */
+  --color-surface:        #ffffff;
+  --color-surface-muted:  #f0ebe5;   /* Stone */
+  --color-surface-border: #ded8cf;   /* Raw Timber */
+  --color-surface-paper:  #fdfcf8;   /* Rice Paper background */
+
+  /* ── Risk levels — earth-toned but functionally clear ────────────────────── */
+  /* Critical keeps red (urgency must not be sacrificed) */
+  --color-risk-critical:        #dc2626;
+  --color-risk-critical-bg:     #fef2f2;
+  --color-risk-critical-border: #fca5a5;
+  --color-risk-high:            #ea580c;
+  --color-risk-high-bg:         #fff7ed;
+  --color-risk-high-border:     #fdba74;
+  --color-risk-medium:          #ca8a04;
+  --color-risk-medium-bg:       #fefce8;
+  --color-risk-medium-border:   #fde047;
+  --color-risk-low:             #5d7052;  /* Moss green for low risk */
+  --color-risk-low-bg:          #f0f4ee;
+  --color-risk-low-border:      #b9cdb2;
+
+  /* ── Semantic aliases ─────────────────────────────────────────────────────── */
+  --color-background:           #fdfcf8;  /* Rice Paper */
+  --color-foreground:           #2c2c24;  /* Deep Loam */
+  --color-primary:              #5d7052;  /* Moss Green */
+  --color-primary-foreground:   #f3f4f1;  /* Pale Mist */
+  --color-secondary:            #c18c5d;  /* Terracotta */
+  --color-secondary-foreground: #ffffff;
+  --color-muted:                #f0ebe5;  /* Stone */
+  --color-muted-foreground:     #78786c;  /* Dried Grass */
+  --color-border:               #ded8cf;  /* Timber */
+  --color-accent:               #e6dccd;  /* Sand */
+  --color-accent-foreground:    #4a4a40;  /* Bark */
+  --color-destructive:          #a85448;  /* Burnt Sienna */
+
+  /* ── Shadows — organic, moss/clay-tinted ─────────────────────────────────── */
+  --shadow-soft:  0 4px 20px -2px rgba(93, 112, 82, 0.15);
+  --shadow-float: 0 10px 40px -10px rgba(193, 140, 93, 0.20);
+  --shadow-card:  0 2px 12px -2px rgba(93, 112, 82, 0.10);
+  --shadow-sm:    0 1px 3px 0 rgba(44, 44, 36, 0.08);
+  --shadow-md:    0 4px 16px -2px rgba(44, 44, 36, 0.10);
+  --shadow-lg:    0 8px 30px -4px rgba(44, 44, 36, 0.14);
+  --shadow-xl:    0 16px 48px -8px rgba(44, 44, 36, 0.16);
+
+  /* ── Border radius — organic softness ────────────────────────────────────── */
+  --radius-xs:  0.375rem;  /* 6px  */
+  --radius-sm:  0.5rem;    /* 8px  */
+  --radius:     0.75rem;   /* 12px */
+  --radius-md:  1rem;      /* 16px */
+  --radius-lg:  1.25rem;   /* 20px */
+  --radius-xl:  1.5rem;    /* 24px */
+  --radius-2xl: 2rem;      /* 32px */
+  --radius-3xl: 2.5rem;    /* 40px */
+  --radius-full: 9999px;
 }
 
-/* ─── Leaflet overrides ─────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════════
+   BASE LAYER
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    border-color: var(--color-surface-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--color-foreground);
+    background-color: var(--color-surface-paper);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Paper grain texture via SVG noise */
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+    background-blend-mode: multiply;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    color: var(--color-foreground);
+  }
+
+  /* Organic scrollbar */
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { background: var(--color-surface-muted); }
+  ::-webkit-scrollbar-thumb  {
+    background: var(--color-surface-border);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-muted-foreground); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   COMPONENT LAYER — Organic Design System
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Cards ────────────────────────────────────────────────────────────────── */
+  .card {
+    background-color: rgba(255,255,255,0.82);
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(222, 216, 207, 0.7);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(2px);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+  }
+  .card:has(button:hover) { /* subtle lift when inner button hovered — progressive enhancement */ }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────────── */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    background-color: var(--color-brand-500);
+    color: var(--color-primary-foreground);
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    letter-spacing: 0.01em;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 20px -2px rgba(93,112,82,0.25);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    outline: none;
+    white-space: nowrap;
+  }
+  .btn-primary:hover {
+    background-color: var(--color-brand-600);
+    box-shadow: 0 6px 24px -4px rgba(93,112,82,0.35);
+    transform: scale(1.02);
+  }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-primary:focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    background-color: rgba(255,255,255,0.8);
+    color: var(--color-accent-foreground);
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    border: 1.5px solid var(--color-surface-border);
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    outline: none;
+    white-space: nowrap;
+  }
+  .btn-secondary:hover {
+    background-color: var(--color-surface-muted);
+    border-color: var(--color-brand-300);
+    transform: scale(1.01);
+  }
+  .btn-secondary:active { transform: scale(0.97); }
+  .btn-secondary:focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+  }
+  .btn-secondary:disabled { opacity: 0.5; pointer-events: none; }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full);
+    background-color: var(--color-risk-critical);
+    color: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 700;
+    font-family: var(--font-sans);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 16px -2px rgba(220,38,38,0.25);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    outline: none;
+    white-space: nowrap;
+  }
+  .btn-danger:hover {
+    background-color: #b91c1c;
+    box-shadow: 0 6px 20px -4px rgba(220,38,38,0.35);
+    transform: scale(1.02);
+  }
+  .btn-danger:active { transform: scale(0.97); }
+  .btn-danger:focus-visible {
+    outline: 2px solid rgba(220,38,38,0.5);
+    outline-offset: 2px;
+  }
+  .btn-danger:disabled { opacity: 0.5; pointer-events: none; }
+
+  /* ── Form elements ────────────────────────────────────────────────────────── */
+  .input {
+    width: 100%;
+    border-radius: var(--radius-lg);
+    border: 1.5px solid var(--color-surface-border);
+    background-color: rgba(255,255,255,0.7);
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    font-family: var(--font-sans);
+    color: var(--color-foreground);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    outline: none;
+    backdrop-filter: blur(2px);
+  }
+  .input::placeholder { color: var(--color-muted-foreground); opacity: 0.8; }
+  .input:focus {
+    border-color: var(--color-brand-400);
+    box-shadow: 0 0 0 3px rgba(93,112,82,0.15);
+  }
+
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-muted-foreground);
+    letter-spacing: 0.03em;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+  }
+
+  /* ── Typography utilities ─────────────────────────────────────────────────── */
+  .page-title {
+    font-family: var(--font-serif);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-foreground);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  .section-title {
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: 800;
+    color: var(--color-foreground);
+    letter-spacing: -0.01em;
+  }
+
+  /* ── Organic shapes (blob backgrounds) ────────────────────────────────────── */
+  .blob {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+  }
+  .blob-alt {
+    border-radius: 40% 60% 70% 30% / 40% 70% 30% 60%;
+  }
+  .blob-soft {
+    border-radius: 45% 55% 65% 35% / 50% 40% 60% 50%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ANIMATION KEYFRAMES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes pulseSlow {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.55; }
+}
+@keyframes ringPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+  70%  { box-shadow: 0 0 0 12px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-fadeIn       { animation: fadeIn 0.35s ease both; }
+.animate-slideUp      { animation: slideUp 0.4s cubic-bezier(0.4,0,0.2,1) both; }
+.animate-slideInRight { animation: slideInRight 0.35s cubic-bezier(0.4,0,0.2,1) both; }
+.animate-scaleIn      { animation: scaleIn 0.3s cubic-bezier(0.4,0,0.2,1) both; }
+.animate-pulse-slow   { animation: pulseSlow 2.5s ease-in-out infinite; }
+.animate-ring-pulse   { animation: ringPulse 2s cubic-bezier(0.455,0.03,0.515,0.955) infinite; }
+.animate-spin         { animation: spin 1s linear infinite; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LEAFLET OVERRIDES — organic style
+   ═══════════════════════════════════════════════════════════════════════════════ */
 .leaflet-container {
-  font-family: 'Inter', system-ui, sans-serif;
-  border-radius: 0.5rem;
+  font-family: var(--font-sans);
+  border-radius: var(--radius-xl);
+  background-color: #e8e4dc;
 }
 .leaflet-popup-content-wrapper {
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
-  font-family: 'Inter', system-ui, sans-serif;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-float) !important;
+  font-family: var(--font-sans);
+  border: 1px solid var(--color-surface-border) !important;
+  background: rgba(253,252,248,0.96) !important;
+  backdrop-filter: blur(8px);
 }
-
-/* ─── Scrollbar ─────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-/* ─── Utility components ────────────────────────────────── */
-@layer components {
-  .card {
-    @apply bg-white rounded-xl border border-surface-border shadow-sm;
-  }
-  .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium
-           hover:bg-brand-700 active:bg-brand-800 transition-colors focus-visible:outline-none
-           focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
-           disabled:opacity-50 disabled:pointer-events-none;
-  }
-  .btn-secondary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-slate-700 text-sm font-medium
-           border border-surface-border hover:bg-surface-muted active:bg-slate-100 transition-colors
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2
-           disabled:opacity-50 disabled:pointer-events-none;
-  }
-  .btn-danger {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium
-           hover:bg-red-700 active:bg-red-800 transition-colors focus-visible:outline-none
-           focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2
-           disabled:opacity-50 disabled:pointer-events-none;
-  }
-  .input {
-    @apply w-full rounded-lg border border-surface-border bg-white px-3 py-2 text-sm text-slate-900
-           placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500
-           focus:border-transparent transition-shadow;
-  }
-  .label {
-    @apply block text-xs font-medium text-slate-600 mb-1;
-  }
-  .page-title {
-    @apply text-2xl font-bold text-slate-900 tracking-tight;
-  }
-  .section-title {
-    @apply text-base font-semibold text-slate-800;
-  }
+.leaflet-popup-tip {
+  background: rgba(253,252,248,0.96) !important;
+}
+.leaflet-popup-content {
+  margin: 12px 16px !important;
+}
+.leaflet-control-zoom {
+  border: 1px solid var(--color-surface-border) !important;
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm) !important;
+}
+.leaflet-control-zoom a {
+  background: rgba(253,252,248,0.9) !important;
+  color: var(--color-foreground) !important;
+  border-bottom-color: var(--color-surface-border) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--color-surface-muted) !important;
 }

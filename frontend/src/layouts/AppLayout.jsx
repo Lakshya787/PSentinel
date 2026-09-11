@@ -13,13 +13,10 @@ export default function AppLayout() {
   function handleToggleOnline() { setDemoOnline(!isOnline) }
 
   function handleReset() {
-    if (window.confirm('Reset all demo data to seed state?')) {
-      resetAll()
-      // Clear report store and online override
-      localStorage.removeItem('ps_field_reports')
-      localStorage.removeItem('ps_demo_online_override')
-      window.location.reload()
-    }
+    resetAll()
+    localStorage.removeItem('ps_field_reports')
+    localStorage.removeItem('ps_demo_online_override')
+    window.location.reload()
   }
 
   return (

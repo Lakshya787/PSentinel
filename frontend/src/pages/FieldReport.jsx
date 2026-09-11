@@ -101,7 +101,7 @@ export default function FieldReport() {
   const [params]             = useSearchParams()
   const { isOnline, setDemoOnline } = useOnlineStatus()
   const { addReport, updateReport, clearAll } = useReportStore()
-  const { upsertCase, resetAll } = useCaseStore()
+  const { upsertCase, patchCase, resetAll } = useCaseStore()
 
   const [form,      setForm]      = useState(params.get('demo') === '1' ? DEMO_FORM : EMPTY_FORM)
   const [phase,     setPhase]     = useState('form')   // form | saved | syncing | result
@@ -222,11 +222,18 @@ export default function FieldReport() {
         { status: 'RISK_ANALYZED', label: 'Risk analysis complete',  at: new Date().toISOString(), note: `Score: ${riskResult.score}/100 — ${riskResult.level}` },
       ],
     }
-    // Only upsert if it's the demo case (COW-1024 already in store)
-    if (report.animalId !== 'COW-1024') upsertCase(caseObj)
+    // Update demo case CASE-1042 or upsert custom case
+    if (report.animalId === 'COW-1024') {
+      patchCase('CASE-1042', {
+        status: 'RISK_ANALYZED',
+        updatedAt: new Date().toISOString(),
+      })
+    } else {
+      upsertCase(caseObj)
+    }
 
     setPhase('result')
-  }, [updateReport, upsertCase])
+  }, [updateReport, upsertCase, patchCase])
 
   // Watch for online recovery while in 'saved' phase
   useEffect(() => {
@@ -296,10 +303,10 @@ export default function FieldReport() {
             {/* Factor bars */}
             <div className="space-y-3">
               {[
-                { label: 'Clinical indicators',     score: report.riskFactors.clinical      },
-                { label: 'Vaccination gap',         score: report.riskFactors.vaccination   },
-                { label: 'Environmental conditions', score: report.riskFactors.environmental },
-                { label: 'Spatial clustering',      score: report.riskFactors.spatial       },
+                { label: 'Clinical',      score: report.riskFactors.clinical      },
+                { label: 'Vaccination',   score: report.riskFactors.vaccination   },
+                { label: 'Environmental', score: report.riskFactors.environmental },
+                { label: 'Spatial',       score: report.riskFactors.spatial       },
               ].map(({ label, score }) => (
                 <RiskFactorCard key={label} label={label} score={score} level={risk.level} />
               ))}
