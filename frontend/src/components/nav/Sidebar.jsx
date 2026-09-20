@@ -30,16 +30,11 @@ export default function Sidebar({ isOnline }) {
         className="flex items-center gap-3 px-5 py-5"
         style={{ borderBottom: '1px solid rgba(222,216,207,0.6)' }}
       >
-        <div
-          className="w-9 h-9 flex items-center justify-center shrink-0"
-          style={{
-            background: 'linear-gradient(135deg, #5d7052, #4e5f45)',
-            borderRadius: '0.875rem',
-            boxShadow: '0 4px 12px rgba(93,112,82,0.35)',
-          }}
-        >
-          <Leaf className="w-4.5 h-4.5 text-white" />
-        </div>
+        <img
+          src="/psentinel.png"
+          alt="Pashu Sentinel"
+          className="w-9 h-9 object-contain shrink-0 rounded-xl shadow-sm"
+        />
         <div className="min-w-0">
           <p
             className="text-sm font-bold leading-tight truncate"

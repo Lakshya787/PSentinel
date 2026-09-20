@@ -1,0 +1,16 @@
+{
+  "short_name": "PashuSentinel",
+  "name": "Pashu Sentinel — Veterinary Intelligence",
+  "icons": [
+    {
+      "src": "/psentinel.png",
+      "type": "image/png",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1a2315",
+  "theme_color": "#5d7052",
+  "display": "standalone",
+  "orientation": "portrait"
+}

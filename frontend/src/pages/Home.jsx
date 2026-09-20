@@ -133,16 +133,20 @@ export default function Home() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="relative z-10 px-6 pt-12 pb-6 text-center animate-slideUp">
         <div
-          className="inline-flex items-center justify-center w-16 h-16 mb-5"
+          className="inline-flex items-center justify-center w-20 h-20 mb-5 p-2"
           style={{
-            background: 'rgba(93,112,82,0.2)',
-            borderRadius: '1.25rem',
-            border: '1px solid rgba(93,112,82,0.35)',
-            backdropFilter: 'blur(8px)',
-            boxShadow: '0 8px 32px rgba(93,112,82,0.2)',
+            background: 'rgba(255,255,255,0.08)',
+            borderRadius: '1.5rem',
+            border: '1px solid rgba(255,255,255,0.2)',
+            backdropFilter: 'blur(12px)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
           }}
         >
-          <Leaf className="w-8 h-8 text-white" />
+          <img
+            src="/psentinel.png"
+            alt="Pashu Sentinel Logo"
+            className="w-full h-full object-contain rounded-xl"
+          />
         </div>
 
         <h1

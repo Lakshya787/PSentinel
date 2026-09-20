@@ -447,6 +447,7 @@ export default function FieldReport() {
         <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg hover:bg-slate-100">
           <ChevronLeft className="w-5 h-5 text-slate-600" />
         </button>
+        <img src="/psentinel.png" alt="Pashu Sentinel" className="w-7 h-7 object-contain rounded-md" />
         <div>
           <h1 className="text-base font-bold text-slate-900">Field Report</h1>
           <p className="text-xs text-slate-500">Submit a livestock disease report</p>
