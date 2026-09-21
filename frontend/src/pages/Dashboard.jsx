@@ -1,14 +1,17 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle, TrendingUp, FlaskConical, MapPin,
   Wifi, WifiOff, Bell, ChevronRight, Map, Activity,
-  ArrowUpRight, Leaf,
+  ArrowUpRight, Leaf, RefreshCw,
 } from 'lucide-react'
 import { useCaseStore } from '../hooks/useCaseStore'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import StatusBadge from '../components/ui/StatusBadge'
 import { riskLevelHex } from '../utils/riskEngine'
 import { formatDateTime } from '../utils/formatters'
+import { api } from '../utils/api'
+import { calculateRisk } from '../utils/riskEngine'
 
 // ─── Organic KPI card ─────────────────────────────────────────────────────────
 function KPICard({ icon: Icon, label, value, sub, iconBg, valueCls, onClick }) {
@@ -137,13 +140,83 @@ function CaseRow({ c, isPrimary, onClick }) {
   )
 }
 
+// ─── Normalise backend snake_case case → frontend camelCase ───────────────────
+function normaliseCase(c) {
+  const rf = c.risk_factors ?? {}
+  return {
+    id:              c.id ?? c.tag_id,
+    animalId:        c.tag_id ?? c.id,
+    species:         c.species,
+    village:         c.village,
+    taluk:           c.taluk,
+    district:        c.district,
+    state:           c.state,
+    lat:             c.lat,
+    lng:             c.lng,
+    symptoms:        c.symptoms ?? [],
+    affectedAnimals: c.affected_animals ?? 1,
+    mortality:       c.mortality ?? 0,
+    reportedBy:      c.reported_by ?? '',
+    assignedVet:     c.assigned_vet ?? null,
+    status:          c.status,
+    syndrome:        c.syndrome ?? 'Undetermined',
+    riskFactors:     rf,
+    risk:            c.risk ?? (Object.keys(rf).length === 4 ? calculateRisk(rf.clinical, rf.vaccination, rf.environmental, rf.spatial) : { score: 0, level: 'LOW', label: 'Low' }),
+    reportedAt:      c.reported_at,
+    updatedAt:       c.updated_at,
+    notes:           c.notes ?? '',
+    tier1Triage:     c.tier1_triage,
+    // keep existing camelCase fields if already present (from local store)
+    timeline:        c.timeline ?? [],
+  }
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const navigate        = useNavigate()
-  const { casesByRisk, kpis } = useCaseStore()
-  const { isOnline }    = useOnlineStatus()
+  const navigate               = useNavigate()
+  const { casesByRisk: localCases, kpis: localKpis } = useCaseStore()
+  const { isOnline }           = useOnlineStatus()
 
-  const priorityCases = casesByRisk.slice(0, 10)
+  const [liveCases,   setLiveCases]   = useState(null)   // null = loading
+  const [liveError,   setLiveError]   = useState(false)
+  const [refreshing,  setRefreshing]  = useState(false)
+
+  async function fetchCases() {
+    try {
+      setRefreshing(true)
+      const data = await api.getCases({ limit: 100 })
+      // Normalise and sort by risk score desc
+      const normalised = (data.cases ?? []).map(normaliseCase)
+      normalised.sort((a, b) => (b.risk?.score ?? 0) - (a.risk?.score ?? 0))
+      setLiveCases(normalised)
+      setLiveError(false)
+    } catch {
+      setLiveError(true)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  // Fetch on mount + when coming back online
+  useEffect(() => { fetchCases() }, [])                    // eslint-disable-line
+  useEffect(() => { if (isOnline) fetchCases() }, [isOnline]) // eslint-disable-line
+
+  // Decide which data source to show
+  const isLoading     = liveCases === null && !liveError
+  const displayCases  = (liveCases && liveCases.length > 0) ? liveCases : localCases
+  const isLive        = liveCases && liveCases.length > 0
+
+  const priorityCases = displayCases.slice(0, 10)
+
+  // Derive KPIs from whichever source is active
+  const kpis = isLive
+    ? {
+        criticalCases:  displayCases.filter(c => c.risk?.level === 'CRITICAL').length,
+        highRiskCases:  displayCases.filter(c => c.risk?.level === 'HIGH').length,
+        activeClusters: 2,
+        pendingLab:     displayCases.filter(c => c.status === 'LAB_TESTING').length,
+      }
+    : localKpis
 
   return (
     <div className="min-h-full animate-fadeIn">
@@ -171,19 +244,38 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Live / seed data badge */}
             <div
               className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5"
               style={{
-                color: isOnline ? '#5d7052' : '#c18c5d',
-                background: isOnline ? 'rgba(93,112,82,0.1)' : 'rgba(193,140,93,0.1)',
+                color: isLive ? '#5d7052' : '#c18c5d',
+                background: isLive ? 'rgba(93,112,82,0.1)' : 'rgba(193,140,93,0.1)',
                 borderRadius: '99px',
               }}
             >
-              {isOnline
-                ? <><Wifi className="w-3 h-3" /> Online</>
-                : <><WifiOff className="w-3 h-3" /> Offline</>
+              {isLoading
+                ? <><RefreshCw className="w-3 h-3 animate-spin" /> Loading…</>
+                : isLive
+                  ? <><Wifi className="w-3 h-3" /> Live ({displayCases.length})</>
+                  : <><WifiOff className="w-3 h-3" /> Demo data</>
               }
             </div>
+
+            {/* Manual refresh */}
+            <button
+              id="btn-refresh-cases"
+              onClick={fetchCases}
+              disabled={refreshing}
+              title="Refresh cases from server"
+              className="p-2 transition-colors hover:bg-black/5"
+              style={{ borderRadius: '0.75rem' }}
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+                style={{ color: '#78786c' }}
+              />
+            </button>
+
             <button
               className="relative p-2 transition-colors"
               style={{ borderRadius: '0.75rem' }}
@@ -200,37 +292,44 @@ export default function Dashboard() {
 
       <div className="max-w-7xl mx-auto px-5 py-5 space-y-5">
 
-        {/* ── Critical alert banner ─────────────────────────────────── */}
-        <div
-          className="flex items-center gap-4 px-4 py-3 animate-slideUp"
-          style={{
-            background: 'linear-gradient(135deg, rgba(168,84,72,0.08), rgba(220,38,38,0.05))',
-            border: '1px solid rgba(168,84,72,0.25)',
-            borderRadius: '1.25rem',
-          }}
-        >
-          <div
-            className="w-8 h-8 flex items-center justify-center shrink-0"
-            style={{ background: 'rgba(168,84,72,0.15)', borderRadius: '0.75rem' }}
-          >
-            <AlertTriangle className="w-4 h-4" style={{ color: '#a85448' }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: '#7a3028' }}>
-              Active Outbreak Alert · Khandala Cluster
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: '#a85448' }}>
-              Vesicular / Podal — COW-1024 · <strong>88/100 CRITICAL</strong> · Veterinary investigation required
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/cases/CASE-1042')}
-            className="shrink-0 text-xs font-bold flex items-center gap-1 transition-opacity hover:opacity-80"
-            style={{ color: '#a85448' }}
-          >
-            View <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {/* ── Critical alert banner — dynamic ─────────────────────────── */}
+        {(() => {
+          const topCritical = displayCases.find(c => c.risk?.level === 'CRITICAL')
+          if (!topCritical) return null
+          return (
+            <div
+              className="flex items-center gap-4 px-4 py-3 animate-slideUp"
+              style={{
+                background: 'linear-gradient(135deg, rgba(168,84,72,0.08), rgba(220,38,38,0.05))',
+                border: '1px solid rgba(168,84,72,0.25)',
+                borderRadius: '1.25rem',
+              }}
+            >
+              <div
+                className="w-8 h-8 flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(168,84,72,0.15)', borderRadius: '0.75rem' }}
+              >
+                <AlertTriangle className="w-4 h-4" style={{ color: '#a85448' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold" style={{ color: '#7a3028' }}>
+                  Active Outbreak Alert · {topCritical.village}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: '#a85448' }}>
+                  {topCritical.syndrome} — {topCritical.animalId} · <strong>{topCritical.risk.score}/100 CRITICAL</strong> · Veterinary investigation required
+                </p>
+              </div>
+              <button
+                onClick={() => navigate(`/cases/${topCritical.id}`)}
+                className="shrink-0 text-xs font-bold flex items-center gap-1 transition-opacity hover:opacity-80"
+                style={{ color: '#a85448' }}
+              >
+                View <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )
+        })()
+        }
 
         {/* ── KPI cards ─────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

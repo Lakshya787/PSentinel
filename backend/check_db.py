@@ -17,6 +17,10 @@ if not DATABASE_URL:
     print("       See backend/.env.example for the format.")
     sys.exit(1)
 
+# Normalise scheme only — no host rewriting
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg" + DATABASE_URL[len("postgresql"):]
+
 from sqlalchemy import create_engine, text
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)

@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, Wifi, WifiOff, CheckCircle2, AlertTriangle,
-  RefreshCw, Upload, MapPin, User, Clipboard,
+  RefreshCw, Upload, MapPin, User, Clipboard, LogOut,
 } from 'lucide-react'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useReportStore } from '../hooks/useReportStore'
@@ -11,6 +11,8 @@ import { calculateRisk } from '../utils/riskEngine'
 import DemoControls from '../components/ui/DemoControls'
 import RiskScoreCard from '../components/ui/RiskScoreCard'
 import RiskFactorCard from '../components/ui/RiskFactorCard'
+import { useAuth } from '../context/AuthContext'
+import { api } from '../utils/api'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SPECIES = ['Cattle', 'Buffalo', 'Goat', 'Sheep', 'Pig', 'Other']
@@ -102,13 +104,24 @@ export default function FieldReport() {
   const { isOnline, setDemoOnline } = useOnlineStatus()
   const { addReport, updateReport, clearAll } = useReportStore()
   const { upsertCase, patchCase, resetAll } = useCaseStore()
+  const { user, logout } = useAuth()
 
-  const [form,      setForm]      = useState(params.get('demo') === '1' ? DEMO_FORM : EMPTY_FORM)
-  const [phase,     setPhase]     = useState('form')   // form | saved | syncing | result
-  const [syncStep,  setSyncStep]  = useState('saved')
-  const [result,    setResult]    = useState(null)
-  const [reportId,  setReportId]  = useState(null)
-  const [errors,    setErrors]    = useState({})
+  // Pre-fill reporterType with the logged-in user's name if available
+  const initialForm = params.get('demo') === '1' ? DEMO_FORM : {
+    ...EMPTY_FORM,
+    reporterType: user?.name ?? '',
+  }
+  const [form,     setForm]     = useState(initialForm)
+  const [phase,    setPhase]    = useState('form')   // form | saved | syncing | result
+  const [syncStep, setSyncStep] = useState('saved')
+  const [result,   setResult]   = useState(null)
+  const [reportId, setReportId] = useState(null)
+  const [errors,   setErrors]   = useState({})
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   // Load demo if query param
   function loadDemo() {
@@ -139,15 +152,29 @@ export default function FieldReport() {
     return e
   }
 
-  // Submit
+  // Submit — saves locally first, then triggers sync if online
   function handleSubmit(e) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
 
-    const id = `R-${Math.floor(1000 + Math.random() * 9000)}`
+    const localId = `R-${Math.floor(1000 + Math.random() * 9000)}`
+    const idemKey = `${Date.now()}-${localId}`
+
+    // Try to get GPS; store result in ref so runSync can read it
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { gpsRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude } },
+        ()    => { gpsRef.current = { lat: 18.7831, lng: 73.9286 } }, // fallback: Khandala
+        { timeout: 5000, maximumAge: 30000 },
+      )
+    } else {
+      gpsRef.current = { lat: 18.7831, lng: 73.9286 }
+    }
+
     const report = {
-      reportId:        id,
+      reportId:        localId,
+      idempotencyKey:  idemKey,
       animalId:        form.animalId.trim(),
       species:         form.species,
       village:         form.village.trim(),
@@ -162,78 +189,155 @@ export default function FieldReport() {
       syncStatus:      'PENDING',
       caseStatus:      'REPORTED',
       createdAt:       new Date().toISOString(),
-      riskFactors:     form.animalId.trim() === 'COW-1024'
-                         ? DEMO_RISK_FACTORS
-                         : { clinical: 55, vaccination: 60, environmental: 55, spatial: 50 },
     }
     addReport(report)
-    setReportId(id)
+    setReportId(localId)
     setPhase('saved')
   }
 
-  // Sync sequence (triggered when coming back online)
-  const runSync = useCallback(async (id) => {
+  // GPS ref — filled by handleSubmit, read by runSync
+  const gpsRef = useRef({ lat: 18.7831, lng: 73.9286 })
+
+  // Sync sequence — now calls the real backend
+  const runSync = useCallback(async (localId) => {
     const delay = (ms) => new Promise(r => setTimeout(r, ms))
     setPhase('syncing')
 
-    const steps = ['saved', 'connected', 'syncing', 'synced', 'analyzing', 'done']
-    for (const step of steps) {
-      setSyncStep(step)
-      await delay(step === 'analyzing' ? 1400 : 900)
-    }
+    // Show initial steps while we wait for GPS to settle
+    setSyncStep('saved')
+    await delay(600)
+    setSyncStep('connected')
+    await delay(600)
+    setSyncStep('syncing')
 
-    // Get saved report
+    // Retrieve local report
     const raw = localStorage.getItem('ps_field_reports')
     const reports = raw ? JSON.parse(raw) : []
-    const report = reports.find(r => r.reportId === id)
+    const report  = reports.find(r => r.reportId === localId)
     if (!report) return
 
-    // Mark synced
-    updateReport(id, { syncStatus: 'SYNCED' })
-
-    // Compute risk (always from utility — never hardcoded)
-    const riskResult = calculateRisk(report.riskFactors)
-    setResult({ report, risk: riskResult })
-
-    // Upsert into case store so dashboard/map pick it up
-    const caseObj = {
-      id:             `CASE-${id}`,
-      animalId:       report.animalId,
-      species:        report.species,
-      village:        report.village,
-      taluk:          report.taluk,
-      district:       report.district,
-      state:          report.state,
-      lat:            18.7831, lng: 73.9286, // default to Khandala if not GPS-captured
-      symptoms:       report.symptoms,
-      affectedAnimals: report.affectedAnimals,
-      mortality:      report.mortality,
-      reportedBy:     report.reportedBy,
-      assignedVet:    null,
-      status:         'RISK_ANALYZED',
-      riskFactors:    report.riskFactors,
-      syndrome:       riskResult.level === 'CRITICAL' || riskResult.level === 'HIGH'
-                        ? 'Vesicular / Podal Syndrome' : 'Undetermined',
-      reportedAt:     report.createdAt,
-      updatedAt:      new Date().toISOString(),
-      notes:          report.notes,
-      timeline: [
-        { status: 'REPORTED',      label: 'Report received',         at: report.createdAt,       note: `Filed by ${report.reportedBy}` },
-        { status: 'RISK_ANALYZED', label: 'Risk analysis complete',  at: new Date().toISOString(), note: `Score: ${riskResult.score}/100 — ${riskResult.level}` },
-      ],
+    // Wait up to 3 s for GPS to arrive
+    const gpsDeadline = Date.now() + 3000
+    while (!gpsRef.current.lat && Date.now() < gpsDeadline) {
+      await delay(200)
     }
-    // Update demo case CASE-1042 or upsert custom case
-    if (report.animalId === 'COW-1024') {
-      patchCase('CASE-1042', {
-        status: 'RISK_ANALYZED',
-        updatedAt: new Date().toISOString(),
+    const { lat, lng } = gpsRef.current
+
+    // Build backend payload (snake_case)
+    const payload = {
+      tag_id:           report.animalId,
+      idempotency_key:  report.idempotencyKey,
+      species:          report.species,
+      village:          report.village,
+      taluk:            report.taluk,
+      district:         report.district,
+      state:            report.state,
+      lat,
+      lng,
+      symptoms:         report.symptoms,
+      mortality:        report.mortality,
+      affected_animals: report.affectedAnimals,
+      reported_by:      report.reportedBy,
+      notes:            report.notes || '',
+    }
+
+    let serverCase = null
+    let riskResult = null
+
+    try {
+      const res = await api.submitReport(payload)
+      setSyncStep('synced')
+      await delay(500)
+      setSyncStep('analyzing')
+      await delay(800)
+
+      // Backend returns { case_id, case: {...}, tier1_triage, ... }
+      serverCase = res.case
+      const rf = serverCase?.risk_factors ?? {}
+      riskResult = serverCase?.risk ?? calculateRisk(rf.clinical ?? 55, rf.vaccination ?? 60, rf.environmental ?? 55, rf.spatial ?? 50)
+
+      // Normalise backend snake_case → frontend camelCase for result screen
+      const normalisedReport = {
+        ...report,
+        reportedBy:     serverCase.reported_by  ?? report.reportedBy,
+        village:        serverCase.village       ?? report.village,
+        riskFactors:    rf,
+        caseId:         serverCase.id            ?? res.case_id,
+      }
+      setResult({ report: normalisedReport, risk: riskResult, caseId: serverCase.id ?? res.case_id })
+      updateReport(localId, { syncStatus: 'SYNCED' })
+
+      // Upsert into local case store for the dashboard (uses camelCase)
+      upsertCase({
+        id:              serverCase.id         ?? `CASE-${localId}`,
+        animalId:        serverCase.tag_id     ?? report.animalId,
+        species:         serverCase.species,
+        village:         serverCase.village,
+        taluk:           serverCase.taluk,
+        district:        serverCase.district,
+        state:           serverCase.state,
+        lat:             serverCase.lat        ?? lat,
+        lng:             serverCase.lng        ?? lng,
+        symptoms:        serverCase.symptoms   ?? report.symptoms,
+        affectedAnimals: serverCase.affected_animals ?? report.affectedAnimals,
+        mortality:       serverCase.mortality  ?? report.mortality,
+        reportedBy:      serverCase.reported_by ?? report.reportedBy,
+        assignedVet:     null,
+        status:          serverCase.status,
+        riskFactors:     rf,
+        syndrome:        serverCase.syndrome   ?? 'Undetermined',
+        reportedAt:      serverCase.reported_at ?? report.createdAt,
+        updatedAt:       serverCase.updated_at  ?? new Date().toISOString(),
+        notes:           serverCase.notes       ?? report.notes,
+        timeline: [
+          { status: 'REPORTED',      label: 'Report received',        at: report.createdAt,       note: `Filed by ${report.reportedBy}` },
+          { status: serverCase.status, label: 'Risk analysis complete', at: new Date().toISOString(), note: `Score: ${riskResult.score}/100 — ${riskResult.level}` },
+        ],
       })
-    } else {
-      upsertCase(caseObj)
+
+    } catch (err) {
+      // Backend unreachable — fall back to local risk calculation
+      console.warn('[FieldReport] Backend sync failed, computing risk locally:', err.message)
+      setSyncStep('synced')
+      await delay(500)
+      setSyncStep('analyzing')
+      await delay(1000)
+
+      const localRf = { clinical: 55, vaccination: 60, environmental: 55, spatial: 50 }
+      riskResult = calculateRisk(localRf)
+      setResult({ report: { ...report, riskFactors: localRf }, risk: riskResult, caseId: `CASE-${localId}` })
+      updateReport(localId, { syncStatus: 'SYNCED' })
+      upsertCase({
+        id:              `CASE-${localId}`,
+        animalId:        report.animalId,
+        species:         report.species,
+        village:         report.village,
+        taluk:           report.taluk,
+        district:        report.district,
+        state:           report.state,
+        lat, lng,
+        symptoms:        report.symptoms,
+        affectedAnimals: report.affectedAnimals,
+        mortality:       report.mortality,
+        reportedBy:      report.reportedBy,
+        assignedVet:     null,
+        status:          'RISK_ANALYZED',
+        riskFactors:     localRf,
+        syndrome:        'Undetermined',
+        reportedAt:      report.createdAt,
+        updatedAt:       new Date().toISOString(),
+        notes:           report.notes,
+        timeline: [
+          { status: 'REPORTED',      label: 'Report received',        at: report.createdAt,       note: `Filed by ${report.reportedBy}` },
+          { status: 'RISK_ANALYZED', label: 'Risk analysis complete', at: new Date().toISOString(), note: `Score: ${riskResult.score}/100 (local)` },
+        ],
+      })
     }
 
+    setSyncStep('done')
+    await delay(400)
     setPhase('result')
-  }, [updateReport, upsertCase, patchCase])
+  }, [updateReport, upsertCase])
 
   // Watch for online recovery while in 'saved' phase
   useEffect(() => {
@@ -255,7 +359,9 @@ export default function FieldReport() {
 
   // ── RENDER: RESULT PHASE ────────────────────────────────────────────────────
   if (phase === 'result' && result) {
-    const { risk, report } = result
+    const { risk, report, caseId } = result
+    const syndromeLabel = report.syndrome
+      ?? (risk.level === 'CRITICAL' || risk.level === 'HIGH' ? 'Vesicular / Podal Syndrome' : 'Undetermined Syndrome')
     return (
       <div className="min-h-full bg-surface-muted pb-8">
         <header className="sticky top-0 z-20 bg-white border-b border-surface-border px-4 py-3 flex items-center gap-3">
@@ -280,13 +386,8 @@ export default function FieldReport() {
           }`}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">High-Risk Syndrome Detected</p>
-                <p className="text-xl font-black text-slate-900 mt-0.5">
-                  {risk.level === 'CRITICAL' || risk.level === 'HIGH'
-                    ? 'Vesicular / Podal Syndrome'
-                    : 'Undetermined Syndrome'
-                  }
-                </p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Syndrome Detected</p>
+                <p className="text-xl font-black text-slate-900 mt-0.5">{syndromeLabel}</p>
               </div>
               <RiskScoreCard score={risk.score} level={risk.level} size="sm" />
             </div>
@@ -334,12 +435,14 @@ export default function FieldReport() {
             >
               View Veterinary Dashboard →
             </button>
-            <button
-              onClick={() => navigate(`/cases/CASE-1042`)}
-              className="btn-secondary justify-center"
-            >
-              View Full Case Details
-            </button>
+            {caseId && (
+              <button
+                onClick={() => navigate(`/cases/${caseId}`)}
+                className="btn-secondary justify-center"
+              >
+                View Full Case Details
+              </button>
+            )}
           </div>
         </div>
 
@@ -452,15 +555,38 @@ export default function FieldReport() {
           <h1 className="text-base font-bold text-slate-900">Field Report</h1>
           <p className="text-xs text-slate-500">Submit a livestock disease report</p>
         </div>
-        <button
-          type="button"
-          onClick={loadDemo}
-          className="ml-auto text-xs font-semibold text-brand-600 border border-brand-200
-                     hover:bg-brand-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-        >
-          <Clipboard className="w-3.5 h-3.5" />
-          Load Demo
-        </button>
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Logged-in user badge */}
+          {user && (
+            <span className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-slate-600
+                             bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">
+              <User className="w-3 h-3 text-slate-400" />
+              {user.name}
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={loadDemo}
+            className="text-xs font-semibold text-brand-600 border border-brand-200
+                       hover:bg-brand-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+          >
+            <Clipboard className="w-3.5 h-3.5" />
+            Load Demo
+          </button>
+
+          {/* Logout */}
+          <button
+            id="btn-logout-field"
+            type="button"
+            onClick={handleLogout}
+            title="Log out"
+            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6 space-y-6">

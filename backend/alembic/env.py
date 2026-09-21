@@ -43,6 +43,9 @@ target_metadata = Base.metadata
 # Override sqlalchemy.url with DATABASE_URL from .env (never stored in alembic.ini)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
+    # Normalise scheme only — bare postgresql:// → postgresql+psycopg://
+    if DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = "postgresql+psycopg" + DATABASE_URL[len("postgresql"):]
     config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 

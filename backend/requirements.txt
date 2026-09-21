@@ -17,3 +17,7 @@ alembic             # Schema migrations
 geoalchemy2         # PostGIS Geometry column type + ST_* function helpers
 python-dotenv       # Load DATABASE_URL from .env without logging it
 shapely             # WKB geometry parsing (lat/lng extraction from PostGIS rows)
+
+# ─── Auth (MVP) ────────────────────────────────────────────────────────────────
+passlib[bcrypt]     # Password hashing (bcrypt)
+python-jose[cryptography]  # HS256 JWT signing + verification
