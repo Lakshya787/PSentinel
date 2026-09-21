@@ -1,5 +1,7 @@
 """
-app/routers/spatial.py — Spatial queries (neighbours & ST_ClusterDBSCAN) router.
+app/routers/spatial.py — Spatial queries (neighbours & DBSCAN clustering) router.
+
+SQLite edition: uses Haversine neighbours and sklearn DBSCAN (via spatial_repo).
 """
 from __future__ import annotations
 
@@ -21,12 +23,12 @@ def get_neighbours(
     days:     int   = Query(4,     description="Look-back window in days"),
     db:       Session = Depends(get_db),
 ):
-    """ST_DWithin neighbouring reports with same syndrome (real PostGIS)."""
+    """Haversine neighbouring reports with same syndrome."""
     case = case_repo.get_report_orm(db, case_id)
     if not case:
         raise HTTPException(404, f"Case '{case_id}' not found.")
-    lat, lng = case_repo._geom_to_lat_lng(case.geom)
-    if lat is None:
+    lat, lng = case.lat, case.lng
+    if lat is None or lng is None:
         raise HTTPException(422, "Case has no geolocation.")
     neighbours = spatial_repo.neighbouring_reports(
         db, lat=lat, lon=lng,
@@ -47,7 +49,7 @@ def get_neighbours(
 @router.get("/clusters")
 def get_clusters(db: Session = Depends(get_db)):
     """
-    ST_ClusterDBSCAN cluster view — real PostGIS window function.
-    eps=5 km (EPSG:32643 UTM 43N), minpoints=3, window=14 days.
+    DBSCAN cluster view — sklearn with Haversine metric.
+    eps=5 km, minpoints=3, window=14 days.
     """
     return spatial_repo.postgis_cluster_dbscan(db)

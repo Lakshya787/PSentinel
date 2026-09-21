@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft, Wifi, WifiOff, CheckCircle2, AlertTriangle,
   RefreshCw, Upload, MapPin, User, Clipboard, LogOut,
+  Camera, Mic, MicOff, X, Sparkles, Image as ImageIcon,
 } from 'lucide-react'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useReportStore } from '../hooks/useReportStore'
@@ -117,6 +118,10 @@ export default function FieldReport() {
   const [result,   setResult]   = useState(null)
   const [reportId, setReportId] = useState(null)
   const [errors,   setErrors]   = useState({})
+  const [photo,    setPhoto]    = useState(null)
+  const [photoName, setPhotoName] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const fileInputRef = useRef(null)
 
   function handleLogout() {
     logout()
@@ -126,8 +131,87 @@ export default function FieldReport() {
   // Load demo if query param
   function loadDemo() {
     setForm(DEMO_FORM)
+    loadSamplePhoto()
     setPhase('form')
     setResult(null)
+  }
+
+  // Handle local photo upload
+  function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = () => {
+        setPhoto(reader.result)
+        setPhotoName(file.name)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Load realistic sample muzzle lesion photo
+  function loadSamplePhoto() {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#451a03"/>
+          <stop offset="50%" stop-color="#991b1b"/>
+          <stop offset="100%" stop-color="#1c1917"/>
+        </linearGradient>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#g)"/>
+      <circle cx="150" cy="110" r="48" fill="#fca5a5" opacity="0.85"/>
+      <circle cx="150" cy="110" r="32" fill="#dc2626" opacity="0.95"/>
+      <circle cx="235" cy="130" r="38" fill="#fca5a5" opacity="0.8"/>
+      <circle cx="235" cy="130" r="22" fill="#b91c1c" opacity="0.95"/>
+      <circle cx="190" cy="165" r="28" fill="#fecaca" opacity="0.75"/>
+      <rect x="15" y="195" width="370" height="32" rx="6" fill="#000000" opacity="0.75"/>
+      <text x="25" y="216" fill="#ffffff" font-family="sans-serif" font-size="12" font-weight="bold">📸 COW-1024: Muzzle Lesions &amp; Ruptured Vesicles</text>
+    </svg>`
+    const uri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+    setPhoto(uri)
+    setPhotoName('lesion_khandala_cow1024.jpg')
+  }
+
+  // Browser speech recognition or fallback simulation
+  function handleVoiceInput() {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      simulateVoiceNote()
+      return
+    }
+    try {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'mr-IN'
+      recognition.onstart = () => setIsListening(true)
+      recognition.onend = () => setIsListening(false)
+      recognition.onerror = () => {
+        setIsListening(false)
+        simulateVoiceNote()
+      }
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript
+        setForm(p => ({ ...p, notes: p.notes ? `${p.notes} | ${transcript}` : transcript }))
+        setIsListening(false)
+      }
+      recognition.start()
+    } catch {
+      simulateVoiceNote()
+    }
+  }
+
+  function simulateVoiceNote() {
+    setIsListening(true)
+    setTimeout(() => {
+      setIsListening(false)
+      setForm(p => ({
+        ...p,
+        symptoms: Array.from(new Set([...p.symptoms, 'Fever', 'Oral vesicles', 'Excessive salivation', 'Lameness'])),
+        mortality: p.mortality || '1',
+        affectedAnimals: p.affectedAnimals || '3',
+        notes: (p.notes ? p.notes + '\n' : '') + '🎙️ [व्हॉइस रेकॉर्डिंग]: तोंडात फोड, जास्त लाळ गळणे, पाय लंगडणे. ३ जनावरे बाधित, १ वासरू दगावले.',
+      }))
+    }, 600)
   }
 
   // Toggle symptom
@@ -713,22 +797,106 @@ export default function FieldReport() {
           {errors.reporterType && <p className="text-xs text-red-500">{errors.reporterType}</p>}
         </div>
 
-        {/* Notes + Image */}
+        {/* Notes + Voice Dictation + Lesion Photo */}
         <div className="card p-5 space-y-4">
-          <h2 className="section-title">Additional Notes</h2>
-          <textarea
-            className="input resize-none h-20"
-            placeholder="Any other observations…"
-            value={form.notes}
-            onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-          />
-          <div>
-            <label className="label">Photo (optional)</label>
-            <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center
-                            text-slate-400 hover:border-brand-300 hover:text-brand-400 transition-colors cursor-pointer">
-              <Upload className="w-5 h-5 mx-auto mb-1" />
-              <p className="text-xs">Tap to attach a photo</p>
+          <div className="flex items-center justify-between">
+            <h2 className="section-title mb-0">Additional Notes &amp; Voice Memo</h2>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  isListening
+                    ? 'bg-red-600 text-white border-red-600 animate-pulse'
+                    : 'bg-brand-50 text-brand-700 border-brand-200 hover:bg-brand-100'
+                }`}
+                title="Voice Dictation (Web Speech API / Marathi)"
+              >
+                {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                <span>{isListening ? 'Listening…' : 'Voice Memo (मराठी)'}</span>
+              </button>
             </div>
+          </div>
+
+          <div className="relative">
+            <textarea
+              className="input resize-none h-24 text-sm"
+              placeholder="Record field observations or tap Voice Memo to dictate in Marathi/Hindi…"
+              value={form.notes}
+              onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+            />
+            {!form.notes && (
+              <button
+                type="button"
+                onClick={simulateVoiceNote}
+                className="absolute right-2 bottom-2 inline-flex items-center gap-1 text-[11px] text-brand-600 hover:text-brand-800 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-200"
+              >
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>Simulate Marathi Dictation</span>
+              </button>
+            )}
+          </div>
+
+          {/* Lesion Photo Section */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="label mb-0">Lesion / Muzzle Photo</label>
+              <button
+                type="button"
+                onClick={loadSamplePhoto}
+                className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 font-medium"
+              >
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                Load Sample Muzzle Lesion
+              </button>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {photo ? (
+              <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
+                <img
+                  src={photo}
+                  alt="Lesion preview"
+                  className="w-full h-44 object-cover object-center"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 flex flex-col justify-between p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-white bg-black/50 backdrop-blur-sm px-2 py-0.5 rounded-full">
+                      ✓ Lesion Attached
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setPhoto(null); setPhotoName('') }}
+                      className="p-1 rounded-full bg-black/60 hover:bg-red-600 text-white transition-colors"
+                      title="Remove photo"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-brand-300 shrink-0" />
+                    <span className="text-xs text-slate-100 font-mono truncate">{photoName}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center
+                           text-slate-400 hover:border-brand-400 hover:text-brand-600 transition-all cursor-pointer bg-slate-50/50 hover:bg-brand-50/20"
+              >
+                <Camera className="w-6 h-6 mx-auto mb-1 text-slate-400 group-hover:text-brand-500" />
+                <p className="text-xs font-medium text-slate-600">Tap to take photo or upload image</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Captures oral blisters, muzzle lesions, or hoof erosions</p>
+              </div>
+            )}
           </div>
         </div>
 

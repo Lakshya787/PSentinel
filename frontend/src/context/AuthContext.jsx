@@ -93,6 +93,20 @@ export function AuthProvider({ children }) {
     return data.user
   }, [_applyToken])
 
+  const demoLogin = useCallback((role = 'VET', name = 'Dr. Deshmukh', phone = '9876543210') => {
+    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+    const payload = btoa(JSON.stringify({
+      sub: `demo-${role.toLowerCase()}-${Date.now()}`,
+      name,
+      phone,
+      role,
+      exp: Math.floor(Date.now() / 1000) + (7 * 24 * 3600),
+    }))
+    const mockToken = `${header}.${payload}.demo-signature`
+    _applyToken(mockToken)
+    return { id: `demo-${role.toLowerCase()}`, name, phone, role }
+  }, [_applyToken])
+
   const logout = useCallback(() => {
     clearToken()
     setToken(null)
@@ -100,7 +114,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, demoLogin, logout }}>
       {children}
     </AuthContext.Provider>
   )

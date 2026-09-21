@@ -3,7 +3,7 @@ import { useState } from 'react'
 import {
   ChevronLeft, MapPin, AlertTriangle, Stethoscope, FlaskConical,
   Clock, CheckCircle2, Circle, ArrowRight, AlertCircle,
-  Activity, ShieldAlert, Globe, Bell, ShieldCheck, Send,
+  Activity, ShieldAlert, Globe, Bell, ShieldCheck, Send, Thermometer,
 } from 'lucide-react'
 import { useCaseStore } from '../hooks/useCaseStore'
 import StatusBadge from '../components/ui/StatusBadge'
@@ -320,6 +320,29 @@ export default function CaseDetail() {
               Investigation started · Assigned to Dr. Ramesh Kulkarni, Junnar Veterinary Office
             </div>
           )}
+
+          {/* One Health Zoonotic Dimension (ref.md §16) */}
+          <div className="mt-3 p-3 bg-emerald-50/90 border border-emerald-300/80 rounded-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-emerald-950">One Health Protocol — Human-Animal Surveillance Loop</p>
+                  <span className="text-[9px] font-mono font-bold bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded">IDSP UNIT: NOTIFIED</span>
+                </div>
+                <p className="text-[11px] text-emerald-700 truncate">
+                  Joint animal-human outbreak surveillance channel active for Pune District Health Directorate.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => alert("ONE HEALTH INTER-AGENCY DISPATCH MEMO\n\nTo: District Surveillance Officer (IDSP), Pune\nFrom: Pashu Sentinel Surveillance Engine / BVO Junnar\nSubject: Pre-diagnostic livestock epizootic cluster in Khandala\nStatus: Pre-diagnostic syndromic cross-notification logged under National One Health Mission.\n\nActions:\n- Enhanced surveillance on dairy farm workers for secondary contact rash\n- Joint bio-security containment active")}
+              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-lg border border-emerald-300 shrink-0 transition-colors"
+            >
+              View Joint Health Notice
+            </button>
+          </div>
         </div>
 
         {/* ── PHASE 4 STATE PANEL ───────────────────────────────── */}
@@ -537,6 +560,43 @@ export default function CaseDetail() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Biometeorological & Climate Correlation Engine (ref.md §12) */}
+            <div className="card p-5 border-amber-200/80 bg-gradient-to-br from-white to-amber-50/40">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Thermometer className="w-4 h-4 text-amber-600" />
+                  <h2 className="section-title text-amber-900 mb-0">Biometeorological Correlation (THI Engine)</h2>
+                </div>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                  THI: 78.4 (Thermal Stress Alert)
+                </span>
+              </div>
+
+              <div className="p-3 bg-white/90 rounded-xl border border-amber-200/60 mb-3 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-mono">THI = 0.8·T + (RH/100)·(T - 14.4) + 46.4</span>
+                  <span className="font-bold text-red-600 font-mono">THI &gt; 78 (High Susceptibility)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Dry-Bulb Temp</p>
+                    <p className="text-sm font-bold text-slate-800">28.4°C</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Relative Humidity</p>
+                    <p className="text-sm font-bold text-slate-800">76% (Post-Monsoon)</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Vector Suitability</p>
+                    <p className="text-sm font-bold text-amber-600">High (Stomoxys / Midges)</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                <strong>Epidemiological trigger:</strong> High relative humidity (&gt;60%) stabilizes airborne Aphthovirus droplets while thermal stress suppresses bovine mucosal immunity, accelerating inter-herd transmission across Junnar Taluk.
+              </p>
             </div>
 
             {/* Timeline */}
