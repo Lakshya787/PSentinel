@@ -1,13 +1,18 @@
-from risk_engine import calculate_risk
-from ml_engine import (
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from copy import deepcopy
+from app.services.risk_engine import calculate_risk
+from app.services.ml_engine import (
     IsolationForestTriage, EWMAFarrington,
     classify_syndrome, st_dbscan, cluster_summary,
     run_three_tier_pipeline, SYNDROME_DEFINITIONS
 )
-from seed_data import SEEDED_CASES
-from copy import deepcopy
+from scripts.seed_data import SEEDED_CASES
 
 print("=== Pashu Sentinel ML Engine Smoke Test ===")
+
 
 # 1. Syndrome classification
 syms = ["fever", "oral vesicles", "excessive salivation", "lameness"]

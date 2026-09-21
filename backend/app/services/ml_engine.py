@@ -1,26 +1,13 @@
 """
 Pashu Sentinel — Three-Tier ML Intelligence Engine
 ====================================================
+app/services/ml_engine.py
+
 ref.md §10 — Three-Tiered Hybrid Intelligence Pipeline
 
 Tier 1 | Case-Level Triage (Isolation Forest)
-  Detects anomalous combinations of prodromal symptoms, species susceptibility,
-  and atypical case-fatality rates. Threshold: anomaly_score > 0.65 → escalate.
-  Source: Liu et al. (2008, IEEE ICDM); VanderWaal et al. (2020, Front. Vet. Sci.)
-
 Tier 2 | Temporal Baseline Aberration (EWMA + Farrington-style)
-  EWMA (alpha=0.3) models weekly syndromic incidence against rolling seasonal baselines.
-  Noufaily-Farrington upper threshold with negative-binomial overdispersion:
-    threshold = mu_EWMA + z_0.99 * sqrt(mu_EWMA * phi)
-  Source: Noufaily et al. (2012, Statistics in Medicine); Vial & Berezowski (2015)
-
 Tier 3 | Spatio-Temporal Outbreak Delineation (ST-DBSCAN)
-  Pure-Python ST-DBSCAN clusters georeferenced high-risk reports into contiguous
-  outbreak boundaries using haversine spatial distance + temporal window.
-    eps_spatial  = 10 km   (surveillance ring radius, ref.md §11)
-    eps_temporal = 7 days
-    minPts       = 2
-  Source: Kulldorff et al. (2005, PLoS Medicine); Birant & Kut (2007, DATAK)
 """
 
 from __future__ import annotations
@@ -163,7 +150,7 @@ class IsolationForestTriage:
         self._scaler  = StandardScaler()
         self._trained = False
 
-    def fit(self, seed_cases: list[dict]) -> "IsolationForestTriage":
+    def fit(self, seed_cases: list[dict]) -> IsolationForestTriage:
         synthetic  = _synthetic_normal_baseline(600)
         real_vecs  = []
         for c in seed_cases:
@@ -193,7 +180,6 @@ class IsolationForestTriage:
             }
 
         feat  = self._scaler.transform(_case_features(case))
-        # decision_function: more negative → more anomalous → map to [0, 1]
         df    = self._model.decision_function(feat)[0]
         score = float(np.clip(0.5 - df, 0.0, 1.0))
         is_anomalous = score > ANOMALY_THRESHOLD
@@ -242,7 +228,7 @@ class EWMAFarrington:
     def __init__(self) -> None:
         self._series: dict[str, list[dict]] = {}
 
-    def build_series(self, all_cases: list[dict]) -> "EWMAFarrington":
+    def build_series(self, all_cases: list[dict]) -> EWMAFarrington:
         buckets: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for c in all_cases:
             syndrome = c.get("syndrome") or classify_syndrome(c.get("symptoms", []))
@@ -459,7 +445,7 @@ def run_three_tier_pipeline(
 
     n = len(triggers)
     confidence_map = {0: "LOW", 1: "MEDIUM", 2: "HIGH", 3: "CRITICAL"}
-    ml_boost       = round((n / 3.0) * 15.0, 1)   # max +15 to WLC composite score
+    ml_boost       = round((n / 3.0) * 15.0, 1)
 
     recommendation_map = {
         3: "CRITICAL: All three intelligence tiers activated. Immediate Rapid Response Team deployment and 3km bio-containment ring.",
@@ -509,3 +495,23 @@ def run_three_tier_pipeline(
             "recommendation":         recommendation_map[n],
         },
     }
+
+
+# ─── Global ML Model Registry ────────────────────────────────────────────────
+_IF_MODEL: IsolationForestTriage | None = None
+_EWMA_MODEL: EWMAFarrington | None = None
+
+
+def set_models(if_model: IsolationForestTriage, ewma_model: EWMAFarrington) -> None:
+    global _IF_MODEL, _EWMA_MODEL
+    _IF_MODEL = if_model
+    _EWMA_MODEL = ewma_model
+
+
+def get_if_model() -> IsolationForestTriage | None:
+    return _IF_MODEL
+
+
+def get_ewma_model() -> EWMAFarrington | None:
+    return _EWMA_MODEL
+

@@ -20,11 +20,14 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from sqlalchemy import text
-from db import SessionLocal
+from app.db.session import SessionLocal
+
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 

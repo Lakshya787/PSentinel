@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load .env once at import time (no-op when vars already set by shell/Docker)
-load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 class Settings:

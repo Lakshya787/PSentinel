@@ -22,8 +22,9 @@ from alembic import context
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from db import Base
-import models  # registers all ORM classes on Base.metadata  # noqa: F401
+from app.db.base import Base
+import app.models  # registers all ORM classes on Base.metadata  # noqa: F401
+
 
 # GeoAlchemy2: register custom render functions so autogenerate emits Geometry()
 try:
