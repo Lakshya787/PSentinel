@@ -1,8 +1,11 @@
-// ─── useCaseStore ─────────────────────────────────────────────────────────────
+// ─── useCaseStore ────────────────────────────────────────────────────────────
 // Global shared case state — ALL pages read/write through this single hook.
 // Phase 4: extended with lab, alert, containment, and notification sub-states.
+//
+// ref.md §15 — Now backed by Dexie (IndexedDB) instead of localStorage.
+// All persistence calls are async; the hook uses useEffect for initial load.
 
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { loadCaseDB, saveCaseDB, resetCaseDB } from '../data/cases'
 import { calculateRisk } from '../utils/riskEngine'
 import { STATUS_LABELS } from '../utils/caseStatus'
@@ -13,21 +16,31 @@ const LIFECYCLE = [
 ]
 
 export function useCaseStore() {
-  const [db, setDb] = useState(loadCaseDB)
+  // null = still loading from IndexedDB; {} = loaded but empty; {id: case} = ready
+  const [db, setDb] = useState(null)
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
-  const cases       = Object.values(db)
-  const getCase     = useCallback((id) => db[id] ?? null, [db])
+  // ── Bootstrap: load from IndexedDB on mount ─────────────────────────────────
+  useEffect(() => {
+    loadCaseDB().then(setDb)
+  }, [])
+
+  // While IndexedDB is loading, return safe empty defaults
+  const safeDb = db ?? {}
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const cases       = Object.values(safeDb)
+  const getCase     = useCallback((id) => safeDb[id] ?? null, [safeDb])
   const casesByRisk = [...cases].sort((a, b) => b.risk.score - a.risk.score)
 
-  // ── Mutate helper ─────────────────────────────────────────────────────────────
+  // ── Mutate helper (async — awaits saveCaseDB) ──────────────────────────────
   const mutate = useCallback((caseId, patchFn) => {
     setDb(prev => {
-      const c = prev[caseId]
-      if (!c) return prev
+      const current = prev ?? {}
+      const c = current[caseId]
+      if (!c) return current
       const updated = patchFn(c)
-      const next = { ...prev, [caseId]: updated }
-      saveCaseDB(next)
+      const next = { ...current, [caseId]: updated }
+      saveCaseDB(next)   // async — fires and forgets; React state updates instantly
       return next
     })
   }, [])
@@ -166,23 +179,21 @@ export function useCaseStore() {
     }))
   }, [mutate])
 
-  // ── Upsert (from field report) ────────────────────────────────────────────────
+  // ── Upsert (from field report) ─────────────────────────────────────────────
   const upsertCase = useCallback((caseObj) => {
     setDb(prev => {
+      const current = prev ?? {}
       const withRisk = { ...caseObj, risk: calculateRisk(caseObj.riskFactors) }
-      const next = { ...prev, [caseObj.id]: withRisk }
+      const next = { ...current, [caseObj.id]: withRisk }
       saveCaseDB(next)
       return next
     })
   }, [])
 
   // ── Reset all ─────────────────────────────────────────────────────────────────
-  const resetAll = useCallback(() => {
-    try {
-      localStorage.removeItem('ps_field_reports')
-      localStorage.removeItem('ps_demo_online_override')
-    } catch { /* ignore */ }
-    const fresh = resetCaseDB()
+  const resetAll = useCallback(async () => {
+    // resetCaseDB() clears + re-seeds IndexedDB, no localStorage touch needed
+    const fresh = await resetCaseDB()
     setDb(fresh)
     return fresh
   }, [])
@@ -196,7 +207,8 @@ export function useCaseStore() {
   }
 
   return {
-    db, cases, casesByRisk, getCase,
+    db: safeDb, cases, casesByRisk, getCase,
+    dbReady: db !== null,   // false while IndexedDB is still loading on first mount
     advanceStatus, forceStatus, patchCase,
     createLabReferral, recordLabResult,
     updateAlert, updateContainment, updateNotifications,

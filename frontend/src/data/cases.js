@@ -1,11 +1,13 @@
 // ─── Shared Case Data Store ───────────────────────────────────────────────────
 // Single source of truth for ALL case data across the entire application.
 // Dashboard, Map, CaseDetail, and FieldReport all import from here.
-// Uses localStorage for persistence so state survives refreshes.
+//
+// ref.md §15 — Uses Dexie (IndexedDB) for durable, async, structured local
+// storage instead of localStorage. Survives tab closures, has no size limit,
+// and is queryable with indices (status, species, district).
 
 import { calculateRisk } from '../utils/riskEngine'
-
-const STORAGE_KEY = 'ps_cases'
+import { pashuDB } from '../db/pashuDB'
 
 // ─── Seeded Cases ─────────────────────────────────────────────────────────────
 // ~25 deterministic cases. Timestamps are relative to a fixed reference point
@@ -479,27 +481,41 @@ export const ENRICHED_SEED_CASES = SEED_CASES.map(c => ({
   risk: calculateRisk(c.riskFactors),
 }))
 
-// ─── localStorage persistence ─────────────────────────────────────────────────
-const CASE_STORAGE_KEY = 'ps_case_db'
+// ─── IndexedDB persistence (Dexie) ───────────────────────────────────────────
+// ref.md §15 — All three functions are async (return Promises).
+// useCaseStore awaits them before updating React state.
 
-export function loadCaseDB() {
-  try {
-    const raw = localStorage.getItem(CASE_STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
-  // First load — hydrate from seed
-  const db = Object.fromEntries(ENRICHED_SEED_CASES.map(c => [c.id, c]))
-  localStorage.setItem(CASE_STORAGE_KEY, JSON.stringify(db))
-  return db
+/**
+ * Load all cases from IndexedDB as a keyed object { [id]: caseObj }.
+ * On first run (empty DB), seeds IndexedDB from ENRICHED_SEED_CASES.
+ * Subsequent runs return whatever the user/app has mutated.
+ */
+export async function loadCaseDB() {
+  const count = await pashuDB.cases.count()
+  if (count === 0) {
+    // First launch — seed IndexedDB with the deterministic demo dataset
+    await pashuDB.cases.bulkPut(ENRICHED_SEED_CASES)
+  }
+  const all = await pashuDB.cases.toArray()
+  return Object.fromEntries(all.map(c => [c.id, c]))
 }
 
-export function saveCaseDB(db) {
-  localStorage.setItem(CASE_STORAGE_KEY, JSON.stringify(db))
+/**
+ * Persist a mutated db object back to IndexedDB.
+ * Dexie.bulkPut() upserts — it only writes records that differ.
+ */
+export async function saveCaseDB(db) {
+  await pashuDB.cases.bulkPut(Object.values(db))
 }
 
-export function resetCaseDB() {
-  localStorage.removeItem(CASE_STORAGE_KEY)
-  return loadCaseDB()
+/**
+ * Wipe the cases table and re-seed from the original demo dataset.
+ * Returns a fresh keyed db object.
+ */
+export async function resetCaseDB() {
+  await pashuDB.cases.clear()
+  await pashuDB.cases.bulkPut(ENRICHED_SEED_CASES)
+  return Object.fromEntries(ENRICHED_SEED_CASES.map(c => [c.id, c]))
 }
 
 // ─── Derived helpers ──────────────────────────────────────────────────────────
