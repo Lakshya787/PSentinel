@@ -1,0 +1,28 @@
+# docker-compose.yml — local PostGIS dev database for Pashu Sentinel
+# Usage:
+#   docker compose up -d        # start in background
+#   docker compose down -v      # stop and delete volume
+#
+# After starting: run `alembic upgrade head` then `python seed.py`
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: pashu_postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       pashu_sentinel
+      POSTGRES_USER:     pashu
+      POSTGRES_PASSWORD: pashu_dev_password
+    ports:
+      - "5433:5432"       # host 5433 → container 5432 (avoids conflict with any system PG)
+    volumes:
+      - pashu_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pashu -d pashu_sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pashu_pgdata:

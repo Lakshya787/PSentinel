@@ -1,4 +1,23 @@
+# ─── API Layer ────────────────────────────────────────────────────────────────
 fastapi
 uvicorn[standard]
 pydantic
 python-multipart
+
+# ─── ML / Intelligence Engine (ref.md §10, §23) ───────────────────────────────
+scikit-learn        # Isolation Forest (Tier 1 triage)
+scipy               # Farrington algorithm, statistical distributions
+numpy               # Feature transformation pipelines
+pandas              # Temporal aggregation for EWMA time series
+
+# ─── Database / PostGIS (ref.md §9, §11) ──────────────────────────────────────
+sqlalchemy>=2.0     # ORM + Core, async-compatible
+psycopg[binary]     # PostgreSQL adapter v3 (psycopg3) for psycopg:// URL scheme
+alembic             # Schema migrations
+geoalchemy2         # PostGIS Geometry column type + ST_* function helpers
+python-dotenv       # Load DATABASE_URL from .env without logging it
+shapely             # WKB geometry parsing (lat/lng extraction from PostGIS rows)
+
+# ─── Auth (MVP) ────────────────────────────────────────────────────────────────
+passlib[bcrypt]     # Password hashing (bcrypt)
+python-jose[cryptography]  # HS256 JWT signing + verification

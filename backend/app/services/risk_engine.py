@@ -1,7 +1,10 @@
-# ─── Pashu Sentinel — Backend Risk Engine ────────────────────────────────────
-# Deterministic risk calculation.
-# Formula: Clinical×0.30 + Vaccination×0.25 + Environmental×0.25 + Spatial×0.20
-# COW-1024: {clinical:92, vaccination:80, environmental:85, spatial:95} → 88 CRITICAL
+"""
+app/services/risk_engine.py — Deterministic WLC composite risk scoring.
+
+Formula: Clinical×0.30 + Vaccination×0.25 + Environmental×0.25 + Spatial×0.20
+Example: {clinical:92, vaccination:80, environmental:85, spatial:95} → 88 CRITICAL
+"""
+from __future__ import annotations
 
 WEIGHTS = {
     "clinical":      0.30,
@@ -25,7 +28,12 @@ SYNDROME_MAP = {
 }
 
 
-def calculate_risk(clinical: float, vaccination: float, environmental: float, spatial: float) -> dict:
+def calculate_risk(
+    clinical: float,
+    vaccination: float,
+    environmental: float,
+    spatial: float,
+) -> dict:
     """
     Calculate composite risk score from four sub-scores (0-100 each).
 

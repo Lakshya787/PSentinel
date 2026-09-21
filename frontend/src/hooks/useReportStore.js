@@ -1,52 +1,62 @@
 // ─── useReportStore ───────────────────────────────────────────────────────────
-// localStorage-backed store for field reports.
-// Reports persist across page refreshes — this is the core of the offline-first demo.
+// IndexedDB-backed store for offline field reports (ref.md §15).
+//
+// BEFORE: localStorage.setItem / JSON.parse — synchronous, 5 MB cap, tab-scoped
+// NOW:    Dexie (IndexedDB) — async, durable, structured, no size limit
+//
+// Key design points:
+//   • useLiveQuery() from dexie-react-hooks gives REACTIVE reads — the component
+//     re-renders automatically whenever the IndexedDB table changes.
+//   • All writes (addReport, updateReport, clearAll) return Promises.
+//   • syncStatus field ('PENDING' | 'SYNCED' | 'FAILED') is used by the
+//     Background Sync queue in the Workbox service worker.
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { pashuDB } from '../db/pashuDB'
 
-const STORAGE_KEY = 'ps_field_reports'
-
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function saveToStorage(reports) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(reports))
-}
-
+// ─── Public hook ─────────────────────────────────────────────────────────────
 export function useReportStore() {
-  const [reports, setReports] = useState(loadFromStorage)
+  // useLiveQuery: reactive — re-renders whenever the 'reports' table changes.
+  // Returns [] while IndexedDB is loading (Dexie handles the async transparently).
+  const reports = useLiveQuery(
+    () => pashuDB.reports.orderBy('createdAt').reverse().toArray(),
+    [],
+    []   // fallback while the first query is loading
+  )
 
-  const addReport = useCallback((report) => {
-    setReports(prev => {
-      const next = [report, ...prev.filter(r => r.reportId !== report.reportId)]
-      saveToStorage(next)
-      return next
-    })
-    return report
+  // ── Add (or upsert by reportId) ───────────────────────────────────────────
+  // Dexie.put() is idempotent: if reportId already exists it updates, else inserts.
+  // This matches the idempotency requirement for Background Sync retries (ref.md §15).
+  const addReport = useCallback(async (report) => {
+    const record = {
+      ...report,
+      syncStatus: report.syncStatus ?? 'PENDING',
+      createdAt:  report.createdAt  ?? new Date().toISOString(),
+    }
+    await pashuDB.reports.put(record)
+    return record
   }, [])
 
-  const updateReport = useCallback((reportId, patch) => {
-    setReports(prev => {
-      const next = prev.map(r => r.reportId === reportId ? { ...r, ...patch } : r)
-      saveToStorage(next)
-      return next
-    })
+  // ── Patch existing report (e.g. update syncStatus after successful sync) ──
+  const updateReport = useCallback(async (reportId, patch) => {
+    await pashuDB.reports.update(reportId, patch)
   }, [])
 
-  const getReport = useCallback((reportId) => {
-    return loadFromStorage().find(r => r.reportId === reportId) ?? null
+  // ── Read single report by ID directly from DB (non-reactive, one-shot) ───
+  const getReport = useCallback(async (reportId) => {
+    return (await pashuDB.reports.get(reportId)) ?? null
   }, [])
 
-  const clearAll = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY)
-    setReports([])
+  // ── Get all PENDING reports (for manual sync trigger) ─────────────────────
+  const getPendingReports = useCallback(async () => {
+    return pashuDB.reports.where('syncStatus').equals('PENDING').toArray()
   }, [])
 
-  return { reports, addReport, updateReport, getReport, clearAll }
+  // ── Clear all reports from IndexedDB ──────────────────────────────────────
+  const clearAll = useCallback(async () => {
+    await pashuDB.reports.clear()
+  }, [])
+
+  return { reports, addReport, updateReport, getReport, getPendingReports, clearAll }
 }
