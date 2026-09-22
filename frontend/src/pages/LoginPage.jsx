@@ -108,9 +108,17 @@ export default function LoginPage() {
     return userRole === 'FARMER' ? '/field-report' : '/dashboard'
   }
 
-  function handleQuickDemo(demoRole, demoName, demoPhone) {
-    const user = demoLogin(demoRole, demoName, demoPhone)
-    navigate(defaultRoute(user.role), { replace: true })
+  async function handleQuickDemo(demoRole, demoName, demoPhone) {
+    setLoading(true)
+    setError('')
+    try {
+      const user = await demoLogin(demoRole, demoName, demoPhone)
+      navigate(defaultRoute(user.role), { replace: true })
+    } catch (err) {
+      setError(err.message || 'Demo login failed. Is the backend running?')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleSubmit(e) {

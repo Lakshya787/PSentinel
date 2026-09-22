@@ -1,5 +1,7 @@
 """
 app/routers/cases.py — Case lifecycle, query, and containment ring endpoints.
+
+SQLite edition: uses ORM for zones endpoint instead of raw PostGIS SQL.
 """
 from __future__ import annotations
 
@@ -7,10 +9,10 @@ import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.alert import ContainmentZone
 from app.middleware.auth import require_role
 from app.models.user import User
 from app.repositories import cases as case_repo
@@ -48,19 +50,15 @@ def get_case_zones(case_id: str, db: Session = Depends(get_db)):
     if not case:
         raise HTTPException(404, f"Case '{case_id}' not found.")
 
-    lat, lng = case_repo._geom_to_lat_lng(case.geom)
-    if lat is None:
+    if case.lat is None or case.lng is None:
         raise HTTPException(422, "Case has no geolocation.")
 
-    zones = db.execute(
-        text("""
-            SELECT ring_km, ST_AsGeoJSON(geom)::text AS geojson, created_at
-            FROM containment_zones
-            WHERE report_id = :rid::uuid
-            ORDER BY ring_km
-        """),
-        {"rid": str(case.id)},
-    ).fetchall()
+    zones = (
+        db.query(ContainmentZone)
+        .filter(ContainmentZone.report_id == str(case.id))
+        .order_by(ContainmentZone.ring_km)
+        .all()
+    )
 
     return {
         "case_id": case_id,

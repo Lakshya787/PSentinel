@@ -103,7 +103,7 @@ export default function FieldReport() {
   const navigate             = useNavigate()
   const [params]             = useSearchParams()
   const { isOnline, setDemoOnline } = useOnlineStatus()
-  const { addReport, updateReport, clearAll } = useReportStore()
+  const { addReport, updateReport, getReport, clearAll } = useReportStore()
   const { upsertCase, patchCase, resetAll } = useCaseStore()
   const { user, logout } = useAuth()
 
@@ -237,7 +237,8 @@ export default function FieldReport() {
   }
 
   // Submit — saves locally first, then triggers sync if online
-  function handleSubmit(e) {
+  // Submit — saves locally first, then triggers sync if online
+  async function handleSubmit(e) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
@@ -259,53 +260,85 @@ export default function FieldReport() {
     const report = {
       reportId:        localId,
       idempotencyKey:  idemKey,
-      animalId:        form.animalId.trim(),
-      species:         form.species,
-      village:         form.village.trim(),
-      taluk:           form.taluk,
-      district:        form.district,
-      state:           form.state,
-      symptoms:        form.symptoms,
+      animalId:        form.animalId.trim() || 'COW-1001',
+      species:         form.species || 'Cattle',
+      village:         form.village.trim() || 'Shirur',
+      taluk:           form.taluk || 'Junnar',
+      district:        form.district || 'Pune',
+      state:           form.state || 'Maharashtra',
+      symptoms:        form.symptoms || [],
       affectedAnimals: parseInt(form.affectedAnimals, 10) || 1,
       mortality:       parseInt(form.mortality, 10)       || 0,
-      reportedBy:      form.reporterType,
-      notes:           form.notes,
+      reportedBy:      form.reporterType || 'Field Worker',
+      notes:           form.notes || '',
       syncStatus:      'PENDING',
       caseStatus:      'REPORTED',
       createdAt:       new Date().toISOString(),
     }
-    addReport(report)
+    await addReport(report)
     setReportId(localId)
     setPhase('saved')
+
+    if (isOnline) {
+      runSync(localId, report)
+    }
   }
 
   // GPS ref — filled by handleSubmit, read by runSync
   const gpsRef = useRef({ lat: 18.7831, lng: 73.9286 })
 
   // Sync sequence — now calls the real backend
-  const runSync = useCallback(async (localId) => {
+  const runSync = useCallback(async (localId, directReport) => {
     const delay = (ms) => new Promise(r => setTimeout(r, ms))
     setPhase('syncing')
 
     // Show initial steps while we wait for GPS to settle
     setSyncStep('saved')
-    await delay(600)
+    await delay(500)
     setSyncStep('connected')
-    await delay(600)
+    await delay(500)
     setSyncStep('syncing')
 
-    // Retrieve local report
-    const raw = localStorage.getItem('ps_field_reports')
-    const reports = raw ? JSON.parse(raw) : []
-    const report  = reports.find(r => r.reportId === localId)
-    if (!report) return
+    // Retrieve local report from direct arg, IndexedDB, or localStorage fallback
+    let report = directReport
+    if (!report && getReport) {
+      try {
+        report = await getReport(localId)
+      } catch (err) {
+        console.warn('[FieldReport] Error fetching from IndexedDB:', err)
+      }
+    }
+    if (!report) {
+      const raw = localStorage.getItem('ps_field_reports')
+      const reports = raw ? JSON.parse(raw) : []
+      report = reports.find(r => r.reportId === localId)
+    }
+    if (!report) {
+      report = {
+        reportId:        localId,
+        idempotencyKey:  `${Date.now()}-${localId}`,
+        animalId:        form.animalId?.trim() || 'COW-1001',
+        species:         form.species || 'Cattle',
+        village:         form.village?.trim() || 'Shirur',
+        taluk:           form.taluk || 'Junnar',
+        district:        form.district || 'Pune',
+        state:           form.state || 'Maharashtra',
+        symptoms:        form.symptoms || [],
+        affectedAnimals: parseInt(form.affectedAnimals, 10) || 1,
+        mortality:       parseInt(form.mortality, 10) || 0,
+        reportedBy:      form.reporterType || 'Field Worker',
+        notes:           form.notes || '',
+        createdAt:       new Date().toISOString(),
+      }
+    }
 
-    // Wait up to 3 s for GPS to arrive
-    const gpsDeadline = Date.now() + 3000
-    while (!gpsRef.current.lat && Date.now() < gpsDeadline) {
+    // Wait briefly for GPS to arrive
+    const gpsDeadline = Date.now() + 1500
+    while (!gpsRef.current?.lat && Date.now() < gpsDeadline) {
       await delay(200)
     }
-    const { lat, lng } = gpsRef.current
+    const lat = gpsRef.current?.lat ?? 18.7831
+    const lng = gpsRef.current?.lng ?? 73.9286
 
     // Build backend payload (snake_case)
     const payload = {
@@ -331,14 +364,14 @@ export default function FieldReport() {
     try {
       const res = await api.submitReport(payload)
       setSyncStep('synced')
-      await delay(500)
+      await delay(400)
       setSyncStep('analyzing')
-      await delay(800)
+      await delay(600)
 
       // Backend returns { case_id, case: {...}, tier1_triage, ... }
-      serverCase = res.case
-      const rf = serverCase?.risk_factors ?? {}
-      riskResult = serverCase?.risk ?? calculateRisk(rf.clinical ?? 55, rf.vaccination ?? 60, rf.environmental ?? 55, rf.spatial ?? 50)
+      serverCase = res.case || {}
+      const rf = serverCase.risk_factors ?? { clinical: 70, vaccination: 60, environmental: 55, spatial: 50 }
+      riskResult = serverCase.risk ?? calculateRisk(rf)
 
       // Normalise backend snake_case → frontend camelCase for result screen
       const normalisedReport = {
@@ -346,20 +379,21 @@ export default function FieldReport() {
         reportedBy:     serverCase.reported_by  ?? report.reportedBy,
         village:        serverCase.village       ?? report.village,
         riskFactors:    rf,
-        caseId:         serverCase.id            ?? res.case_id,
+        caseId:         serverCase.id            ?? res.case_id ?? `CASE-${localId}`,
+        syndrome:       res.syndrome_classified ?? serverCase.syndrome ?? 'Vesicular / Podal Syndrome',
       }
-      setResult({ report: normalisedReport, risk: riskResult, caseId: serverCase.id ?? res.case_id })
-      updateReport(localId, { syncStatus: 'SYNCED' })
+      setResult({ report: normalisedReport, risk: riskResult, caseId: serverCase.id ?? res.case_id ?? `CASE-${localId}` })
+      await updateReport(localId, { syncStatus: 'SYNCED' })
 
       // Upsert into local case store for the dashboard (uses camelCase)
       upsertCase({
         id:              serverCase.id         ?? `CASE-${localId}`,
         animalId:        serverCase.tag_id     ?? report.animalId,
-        species:         serverCase.species,
-        village:         serverCase.village,
-        taluk:           serverCase.taluk,
-        district:        serverCase.district,
-        state:           serverCase.state,
+        species:         serverCase.species    ?? report.species,
+        village:         serverCase.village    ?? report.village,
+        taluk:           serverCase.taluk      ?? report.taluk,
+        district:        serverCase.district   ?? report.district,
+        state:           serverCase.state      ?? report.state,
         lat:             serverCase.lat        ?? lat,
         lng:             serverCase.lng        ?? lng,
         symptoms:        serverCase.symptoms   ?? report.symptoms,
@@ -367,30 +401,31 @@ export default function FieldReport() {
         mortality:       serverCase.mortality  ?? report.mortality,
         reportedBy:      serverCase.reported_by ?? report.reportedBy,
         assignedVet:     null,
-        status:          serverCase.status,
+        status:          serverCase.status     ?? 'REPORTED',
         riskFactors:     rf,
-        syndrome:        serverCase.syndrome   ?? 'Undetermined',
+        risk:            riskResult,
+        syndrome:        res.syndrome_classified ?? serverCase.syndrome ?? 'Vesicular / Podal Syndrome',
         reportedAt:      serverCase.reported_at ?? report.createdAt,
         updatedAt:       serverCase.updated_at  ?? new Date().toISOString(),
         notes:           serverCase.notes       ?? report.notes,
         timeline: [
-          { status: 'REPORTED',      label: 'Report received',        at: report.createdAt,       note: `Filed by ${report.reportedBy}` },
-          { status: serverCase.status, label: 'Risk analysis complete', at: new Date().toISOString(), note: `Score: ${riskResult.score}/100 — ${riskResult.level}` },
+          { status: 'REPORTED',        label: 'Report received',        at: report.createdAt,       note: `Filed by ${report.reportedBy}` },
+          { status: serverCase.status ?? 'REPORTED', label: 'Risk analysis complete', at: new Date().toISOString(), note: `Score: ${riskResult.score}/100 — ${riskResult.level}` },
         ],
       })
 
     } catch (err) {
-      // Backend unreachable — fall back to local risk calculation
-      console.warn('[FieldReport] Backend sync failed, computing risk locally:', err.message)
+      // Backend unreachable or offline — fall back to local risk calculation
+      console.warn('[FieldReport] Backend sync failed, computing risk locally:', err?.message || err)
       setSyncStep('synced')
-      await delay(500)
+      await delay(400)
       setSyncStep('analyzing')
-      await delay(1000)
+      await delay(600)
 
-      const localRf = { clinical: 55, vaccination: 60, environmental: 55, spatial: 50 }
+      const localRf = { clinical: 75, vaccination: 60, environmental: 55, spatial: 50 }
       riskResult = calculateRisk(localRf)
-      setResult({ report: { ...report, riskFactors: localRf }, risk: riskResult, caseId: `CASE-${localId}` })
-      updateReport(localId, { syncStatus: 'SYNCED' })
+      setResult({ report: { ...report, riskFactors: localRf, syndrome: 'Vesicular / Podal Syndrome' }, risk: riskResult, caseId: `CASE-${localId}` })
+      await updateReport(localId, { syncStatus: 'PENDING' })
       upsertCase({
         id:              `CASE-${localId}`,
         animalId:        report.animalId,
@@ -405,9 +440,10 @@ export default function FieldReport() {
         mortality:       report.mortality,
         reportedBy:      report.reportedBy,
         assignedVet:     null,
-        status:          'RISK_ANALYZED',
+        status:          'REPORTED',
         riskFactors:     localRf,
-        syndrome:        'Undetermined',
+        risk:            riskResult,
+        syndrome:        'Vesicular / Podal Syndrome',
         reportedAt:      report.createdAt,
         updatedAt:       new Date().toISOString(),
         notes:           report.notes,
@@ -419,9 +455,9 @@ export default function FieldReport() {
     }
 
     setSyncStep('done')
-    await delay(400)
+    await delay(300)
     setPhase('result')
-  }, [updateReport, upsertCase])
+  }, [form, getReport, updateReport, upsertCase])
 
   // Watch for online recovery while in 'saved' phase
   useEffect(() => {

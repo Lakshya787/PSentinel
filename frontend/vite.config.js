@@ -143,5 +143,14 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    proxy: {
+      '/auth': 'http://127.0.0.1:8000',
+      '/cases': 'http://127.0.0.1:8000',
+      '/reports': 'http://127.0.0.1:8000',
+      '/risk': 'http://127.0.0.1:8000',
+      '/clusters': 'http://127.0.0.1:8000',
+      '/neighbours': 'http://127.0.0.1:8000',
+      '/health': 'http://127.0.0.1:8000',
+    },
   },
 })

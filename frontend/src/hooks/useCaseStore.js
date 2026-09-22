@@ -30,7 +30,9 @@ export function useCaseStore() {
   // ── Helpers ────────────────────────────────────────────────────────────────
   const cases       = Object.values(safeDb)
   const getCase     = useCallback((id) => safeDb[id] ?? null, [safeDb])
-  const casesByRisk = [...cases].sort((a, b) => b.risk.score - a.risk.score)
+  const casesByRisk = [...cases]
+    .filter(c => c?.risk)
+    .sort((a, b) => (b.risk?.score ?? 0) - (a.risk?.score ?? 0))
 
   // ── Mutate helper (async — awaits saveCaseDB) ──────────────────────────────
   const mutate = useCallback((caseId, patchFn) => {
@@ -183,7 +185,9 @@ export function useCaseStore() {
   const upsertCase = useCallback((caseObj) => {
     setDb(prev => {
       const current = prev ?? {}
-      const withRisk = { ...caseObj, risk: calculateRisk(caseObj.riskFactors) }
+      // Preserve pre-computed risk; only recalculate if not already present
+      const risk = caseObj.risk ?? (caseObj.riskFactors ? calculateRisk(caseObj.riskFactors) : { score: 50, level: 'MEDIUM', factors: {} })
+      const withRisk = { ...caseObj, risk, timeline: caseObj.timeline ?? [] }
       const next = { ...current, [caseObj.id]: withRisk }
       saveCaseDB(next)
       return next
@@ -200,8 +204,8 @@ export function useCaseStore() {
 
   // ── KPIs ──────────────────────────────────────────────────────────────────────
   const kpis = {
-    criticalCases:  cases.filter(c => c.risk.level === 'CRITICAL').length,
-    highRiskCases:  cases.filter(c => c.risk.level === 'HIGH').length,
+    criticalCases:  cases.filter(c => c.risk?.level === 'CRITICAL').length,
+    highRiskCases:  cases.filter(c => c.risk?.level === 'HIGH').length,
     activeClusters: 2,
     pendingLab:     cases.filter(c => c.status === 'LAB_TESTING').length,
   }
