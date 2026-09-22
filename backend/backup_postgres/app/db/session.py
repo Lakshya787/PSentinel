@@ -1,48 +1,24 @@
 """
 app/db/session.py — SQLAlchemy engine, session factory, Base, and FastAPI dependency.
 
-SQLite edition:
-  - Uses StaticPool so a single in-process connection is reused (safe for sync uvicorn)
-  - check_same_thread=False required for SQLite when used with FastAPI thread pool
-  - Tables are created via Base.metadata.create_all() in app/main.py lifespan
-
-All other modules should import from here:
+Replaces the top-level db.py.  All other modules should import from here:
     from app.db.session import Base, get_db, engine
 """
 from __future__ import annotations
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
 
 # ─── Engine ───────────────────────────────────────────────────────────────────
-_url = settings.resolved_database_url
-
-# SQLite-specific connection args
-_connect_args = {}
-_poolclass = None
-
-if _url.startswith("sqlite"):
-    _connect_args = {"check_same_thread": False}
-    _poolclass = StaticPool
-
 engine = create_engine(
-    _url,
-    connect_args=_connect_args,
-    **({"poolclass": _poolclass} if _poolclass else {}),
+    settings.resolved_database_url,
+    pool_pre_ping=True,       # silently reconnects stale pool connections
+    pool_size=settings.pool_size,
+    max_overflow=settings.max_overflow,
     echo=settings.DB_ECHO,
 )
-
-# Enable WAL mode + foreign keys for SQLite
-if _url.startswith("sqlite"):
-    @event.listens_for(engine, "connect")
-    def _set_sqlite_pragma(dbapi_conn, _connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
 
 # ─── Session factory ──────────────────────────────────────────────────────────
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

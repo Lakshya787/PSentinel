@@ -1,18 +1,19 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ChevronLeft, MapPin, AlertTriangle, Stethoscope, FlaskConical,
-  Clock, CheckCircle2, Circle, ArrowRight, AlertCircle,
-  Activity, ShieldAlert, Globe, Bell, ShieldCheck, Send,
+  Clock, CheckCircle2, Circle, ArrowRight, AlertCircle, Loader2,
+  Activity, ShieldAlert, Globe, Bell, ShieldCheck, Send, Thermometer,
 } from 'lucide-react'
 import { useCaseStore } from '../hooks/useCaseStore'
 import StatusBadge from '../components/ui/StatusBadge'
 import RiskScoreCard from '../components/ui/RiskScoreCard'
 import RiskFactorCard from '../components/ui/RiskFactorCard'
 import WorkflowStepper from '../components/ui/WorkflowStepper'
-import { riskLevelHex } from '../utils/riskEngine'
+import { calculateRisk, riskLevelHex } from '../utils/riskEngine'
 import { formatDateTime } from '../utils/formatters'
 import { CASE_STATUSES, STATUS_LABELS } from '../utils/caseStatus'
+import { api } from '../utils/api'
 
 // ─── Factor explanations ──────────────────────────────────────────────────────
 const FACTOR_EXPLANATIONS = {
@@ -66,8 +67,67 @@ export default function CaseDetail() {
   const navigate = useNavigate()
   const { getCase, advanceStatus } = useCaseStore()
   const [justAdvanced, setJustAdvanced] = useState(false)
+  const [remoteCase, setRemoteCase] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const c = getCase(id)
+  const localCase = getCase(id)
+  const c = localCase || remoteCase
+
+  useEffect(() => {
+    if (localCase) {
+      setLoading(false)
+      return
+    }
+    // Fetch from backend API
+    api.getCase(id)
+      .then(res => {
+        if (res) {
+          const rf = res.risk_factors ?? { clinical: 70, vaccination: 60, environmental: 55, spatial: 50 }
+          const risk = res.risk ?? calculateRisk(rf)
+          const norm = {
+            id: res.id || res.tag_id || id,
+            animalId: res.tag_id || res.id || id,
+            species: res.species || 'Cattle',
+            village: res.village || 'Shirur',
+            taluk: res.taluk || 'Junnar',
+            district: res.district || 'Pune',
+            state: res.state || 'Maharashtra',
+            lat: res.lat ?? 18.7831,
+            lng: res.lng ?? 73.9286,
+            symptoms: res.symptoms || [],
+            affectedAnimals: res.affected_animals || 1,
+            mortality: res.mortality || 0,
+            reportedBy: res.reported_by || 'Field Worker',
+            assignedVet: res.assigned_vet || null,
+            status: res.status || 'REPORTED',
+            riskFactors: rf,
+            risk,
+            syndrome: res.syndrome || 'Vesicular / Podal Syndrome',
+            reportedAt: res.reported_at || new Date().toISOString(),
+            updatedAt: res.updated_at || new Date().toISOString(),
+            notes: res.notes || '',
+            timeline: res.timeline || [
+              { status: 'REPORTED', label: 'Report received', at: res.reported_at || new Date().toISOString(), note: `Filed by ${res.reported_by || 'Field Worker'}` },
+              { status: res.status || 'REPORTED', label: 'Risk analysis complete', at: new Date().toISOString(), note: `Score: ${risk.score}/100 — ${risk.level}` },
+            ],
+          }
+          setRemoteCase(norm)
+        }
+      })
+      .catch(err => {
+        console.warn('[CaseDetail] Failed to load case from backend:', err)
+      })
+      .finally(() => setLoading(false))
+  }, [id, localCase])
+
+  if (loading && !c) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-96 gap-3 text-slate-500">
+        <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+        <p className="font-medium text-sm">Loading case details…</p>
+      </div>
+    )
+  }
 
   if (!c) {
     return (
@@ -81,18 +141,21 @@ export default function CaseDetail() {
     )
   }
 
-  const risk = c.risk
+  const risk = c.risk ?? calculateRisk(c.riskFactors ?? {})
   const hex  = riskLevelHex(risk.level)
 
   // Build full timeline including pending future steps
-  const completedStatuses = new Set(c.timeline.map(t => t.status))
-  const currentIdx        = CASE_STATUSES.indexOf(c.status)
+  const timelineList      = c.timeline || [
+    { status: 'REPORTED', label: 'Report received', at: c.reportedAt || new Date().toISOString(), note: `Filed by ${c.reportedBy || 'Field Worker'}` }
+  ]
+  const completedStatuses = new Set(timelineList.map(t => t.status))
+  const currentIdx        = CASE_STATUSES.indexOf(c.status || 'REPORTED')
 
   const fullTimeline = CASE_STATUSES.map((status, i) => {
     const done    = completedStatuses.has(status)
     const current = status === c.status
     const future  = i > currentIdx
-    const entry   = c.timeline.find(t => t.status === status)
+    const entry   = timelineList.find(t => t.status === status)
     return {
       status,
       label:   entry?.label ?? STATUS_LABELS[status],
@@ -320,6 +383,29 @@ export default function CaseDetail() {
               Investigation started · Assigned to Dr. Ramesh Kulkarni, Junnar Veterinary Office
             </div>
           )}
+
+          {/* One Health Zoonotic Dimension (ref.md §16) */}
+          <div className="mt-3 p-3 bg-emerald-50/90 border border-emerald-300/80 rounded-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-emerald-950">One Health Protocol — Human-Animal Surveillance Loop</p>
+                  <span className="text-[9px] font-mono font-bold bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded">IDSP UNIT: NOTIFIED</span>
+                </div>
+                <p className="text-[11px] text-emerald-700 truncate">
+                  Joint animal-human outbreak surveillance channel active for Pune District Health Directorate.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => alert("ONE HEALTH INTER-AGENCY DISPATCH MEMO\n\nTo: District Surveillance Officer (IDSP), Pune\nFrom: Pashu Sentinel Surveillance Engine / BVO Junnar\nSubject: Pre-diagnostic livestock epizootic cluster in Khandala\nStatus: Pre-diagnostic syndromic cross-notification logged under National One Health Mission.\n\nActions:\n- Enhanced surveillance on dairy farm workers for secondary contact rash\n- Joint bio-security containment active")}
+              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-100 hover:bg-emerald-200 px-2.5 py-1 rounded-lg border border-emerald-300 shrink-0 transition-colors"
+            >
+              View Joint Health Notice
+            </button>
+          </div>
         </div>
 
         {/* ── PHASE 4 STATE PANEL ───────────────────────────────── */}
@@ -537,6 +623,43 @@ export default function CaseDetail() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Biometeorological & Climate Correlation Engine (ref.md §12) */}
+            <div className="card p-5 border-amber-200/80 bg-gradient-to-br from-white to-amber-50/40">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Thermometer className="w-4 h-4 text-amber-600" />
+                  <h2 className="section-title text-amber-900 mb-0">Biometeorological Correlation (THI Engine)</h2>
+                </div>
+                <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                  THI: 78.4 (Thermal Stress Alert)
+                </span>
+              </div>
+
+              <div className="p-3 bg-white/90 rounded-xl border border-amber-200/60 mb-3 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 font-mono">THI = 0.8·T + (RH/100)·(T - 14.4) + 46.4</span>
+                  <span className="font-bold text-red-600 font-mono">THI &gt; 78 (High Susceptibility)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Dry-Bulb Temp</p>
+                    <p className="text-sm font-bold text-slate-800">28.4°C</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Relative Humidity</p>
+                    <p className="text-sm font-bold text-slate-800">76% (Post-Monsoon)</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Vector Suitability</p>
+                    <p className="text-sm font-bold text-amber-600">High (Stomoxys / Midges)</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                <strong>Epidemiological trigger:</strong> High relative humidity (&gt;60%) stabilizes airborne Aphthovirus droplets while thermal stress suppresses bovine mucosal immunity, accelerating inter-herd transmission across Junnar Taluk.
+              </p>
             </div>
 
             {/* Timeline */}

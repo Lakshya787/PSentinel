@@ -1,14 +1,11 @@
 """
-app/repositories/cases.py — Case (Report) CRUD using SQLAlchemy ORM.
+app/repositories/cases.py — Case (Report) CRUD using SQLAlchemy + raw SQL.
 
-SQLite edition:
-  - Replaces raw PostGIS SQL with ORM-level operations
-  - Idempotent insert: check-by-idempotency_key then insert
-  - JSONB replaced with Text (json.loads / json.dumps)
-  - Geometry replaced with plain lat/lng Float fields
+All writes use idempotent INSERT … ON CONFLICT DO NOTHING so Background Sync
+retries never create duplicate rows (ref.md §15).
 
-report_to_dict() converts ORM rows → the exact JSON shape all existing API
-routes return — no frontend response-shape changes required.
+report_to_dict() converts ORM rows → the exact JSON shape the existing API
+returns — no frontend changes required.
 """
 from __future__ import annotations
 
@@ -17,6 +14,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
+from geoalchemy2 import shape as ga_shape
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.report import Report
@@ -29,27 +28,17 @@ LIFECYCLE = [
 ]
 
 
-# ─── JSON helpers ─────────────────────────────────────────────────────────────
+# ─── Shape converter ──────────────────────────────────────────────────────────
 
-def _jloads(val) -> list | dict:
-    """Safely parse a JSON Text column value."""
-    if val is None:
-        return None
-    if isinstance(val, (list, dict)):
-        return val   # already decoded (e.g. in tests)
+def _geom_to_lat_lng(geom) -> tuple[Optional[float], Optional[float]]:
+    """Extract (lat, lng) from a GeoAlchemy2 WKBElement. Returns (None, None) on failure."""
+    if geom is None:
+        return None, None
     try:
-        return json.loads(val)
-    except (TypeError, ValueError):
-        return val
-
-
-def _jdumps(val) -> str:
-    """Encode a Python object to a JSON string for Text columns."""
-    if val is None:
-        return None
-    if isinstance(val, str):
-        return val   # already encoded
-    return json.dumps(val)
+        pt = ga_shape.to_shape(geom)
+        return pt.y, pt.x   # PostGIS stores as (lng, lat) = (x, y)
+    except Exception:
+        return None, None
 
 
 # ─── Response serialiser ──────────────────────────────────────────────────────
@@ -59,7 +48,8 @@ def report_to_dict(r: Report) -> dict:
     Convert ORM Report row → the exact dict shape all existing API routes return.
     No frontend response-shape changes required.
     """
-    rf = _jloads(r.risk_factors) or {}
+    lat, lng = _geom_to_lat_lng(r.geom)
+    rf = r.risk_factors or {}
     risk = calculate_risk(**rf) if len(rf) == 4 else None
 
     return {
@@ -72,9 +62,9 @@ def report_to_dict(r: Report) -> dict:
         "taluk":            r.taluk,
         "district":         r.district,
         "state":            r.state,
-        "lat":              r.lat,
-        "lng":              r.lng,
-        "symptoms":         _jloads(r.symptoms) or [],
+        "lat":              lat,
+        "lng":              lng,
+        "symptoms":         r.symptoms or [],
         "mortality":        r.mortality,
         "affected_animals": r.affected_animals,
         "reported_by":      r.reported_by,
@@ -89,7 +79,7 @@ def report_to_dict(r: Report) -> dict:
         ),
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         "notes":       r.notes or "",
-        "tier1_triage": _jloads(r.tier1_triage),
+        "tier1_triage": r.tier1_triage,
     }
 
 
@@ -105,7 +95,7 @@ def list_reports(
     if status:
         q = q.filter(Report.status == status.upper())
     if species:
-        q = q.filter(Report.species.ilike(f"%{species}%"))
+        q = q.filter(Report.species.ilike(species))
     rows = q.order_by(Report.received_at.desc()).limit(limit).all()
     result = [report_to_dict(r) for r in rows]
     # sort by risk score descending (matching old behaviour)
@@ -136,66 +126,92 @@ def create_report(
     tier1_result: Optional[dict] = None,
 ) -> tuple[dict, bool]:
     """
-    Idempotent report insert — checks idempotency_key first.
+    Idempotent report insert (ON CONFLICT (idempotency_key) DO NOTHING).
 
     Returns (report_dict, is_new):
       is_new=False when the idempotency_key already existed (replay detected).
     """
     idem_key = data.get("idempotency_key") or str(uuid.uuid4())
+    new_id   = str(uuid.uuid4())
     now      = datetime.now(timezone.utc)
 
-    # Check for existing row (idempotency)
-    existing = db.query(Report).filter(Report.idempotency_key == idem_key).first()
-    if existing:
-        return report_to_dict(existing), False
+    lat = data.get("lat")
+    lng = data.get("lng")
 
-    new_report = Report(
-        id               = str(uuid.uuid4()),
-        idempotency_key  = idem_key,
-        tag_id           = data.get("tag_id"),
-        species          = data.get("species"),
-        breed            = data.get("breed"),
-        age_years        = data.get("age_years"),
-        village          = data.get("village"),
-        taluk            = data.get("taluk"),
-        district         = data.get("district"),
-        state            = data.get("state", "Maharashtra"),
-        lat              = data.get("lat"),
-        lng              = data.get("lng"),
-        syndrome         = data.get("syndrome"),
-        symptoms         = _jdumps(data.get("symptoms", [])),
-        mortality        = data.get("mortality", 0),
-        affected_animals = data.get("affected_animals", 1),
-        reported_by      = data.get("reported_by"),
-        assigned_vet     = data.get("assigned_vet"),
-        status           = data.get("status", "REPORTED"),
-        risk_factors     = _jdumps(data.get("risk_factors", {})),
-        notes            = data.get("notes", ""),
-        tier1_triage     = _jdumps(tier1_result or {}),
-        created_at_client= now,
-        received_at      = now,
-        updated_at       = now,
-    )
-    db.add(new_report)
+    sql = text("""
+        INSERT INTO reports (
+            id, idempotency_key, tag_id,
+            species, breed, age_years,
+            village, taluk, district, state,
+            geom, syndrome, symptoms, mortality, affected_animals,
+            reported_by, assigned_vet, status,
+            risk_factors, notes, tier1_triage,
+            created_at_client, received_at, updated_at
+        ) VALUES (
+            :id, :idem_key, :tag_id,
+            :species, :breed, :age_years,
+            :village, :taluk, :district, :state,
+            ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
+            :syndrome, :symptoms::jsonb, :mortality, :affected_animals,
+            :reported_by, :assigned_vet, :status,
+            :risk_factors::jsonb, :notes, :tier1_triage::jsonb,
+            :created_at_client, :received_at, :updated_at
+        )
+        ON CONFLICT (idempotency_key) DO NOTHING
+    """)
+
+    result = db.execute(sql, {
+        "id":              new_id,
+        "idem_key":        idem_key,
+        "tag_id":          data.get("tag_id"),
+        "species":         data.get("species"),
+        "breed":           data.get("breed"),
+        "age_years":       data.get("age_years"),
+        "village":         data.get("village"),
+        "taluk":           data.get("taluk"),
+        "district":        data.get("district"),
+        "state":           data.get("state", "Maharashtra"),
+        "lng":             lng,
+        "lat":             lat,
+        "syndrome":        data.get("syndrome"),
+        "symptoms":        json.dumps(data.get("symptoms", [])),
+        "mortality":       data.get("mortality", 0),
+        "affected_animals": data.get("affected_animals", 1),
+        "reported_by":     data.get("reported_by"),
+        "assigned_vet":    data.get("assigned_vet"),
+        "status":          data.get("status", "REPORTED"),
+        "risk_factors":    json.dumps(data.get("risk_factors", {})),
+        "notes":           data.get("notes", ""),
+        "tier1_triage":    json.dumps(tier1_result or {}),
+        "created_at_client": now,
+        "received_at":     now,
+        "updated_at":      now,
+    })
     db.commit()
-    db.refresh(new_report)
+
+    is_new = result.rowcount == 1   # 0 = conflict (replay), 1 = inserted
+
+    # Fetch the row (might be the existing one if key was duplicated)
+    r = db.query(Report).filter(Report.idempotency_key == idem_key).first()
 
     # Persist risk assessment
-    rf = data.get("risk_factors")
-    if rf and len(rf) == 4:
+    if r and data.get("risk_factors") and is_new:
+        rf = data["risk_factors"]
         risk = calculate_risk(**rf)
-        ra = RiskAssessment(
-            id          = str(uuid.uuid4()),
-            report_id   = new_report.id,
-            crs         = risk["score"],
-            tier        = risk["level"],
-            factors     = _jdumps(rf),
-            computed_at = now,
-        )
-        db.add(ra)
+        db.execute(text("""
+            INSERT INTO risk_assessments (id, report_id, crs, tier, factors, computed_at)
+            VALUES (:id, :report_id::uuid, :crs, :tier, :factors::jsonb, now())
+            ON CONFLICT (report_id) DO NOTHING
+        """), {
+            "id":        str(uuid.uuid4()),
+            "report_id": str(r.id),
+            "crs":       risk["score"],
+            "tier":      risk["level"],
+            "factors":   json.dumps(rf),
+        })
         db.commit()
 
-    return report_to_dict(new_report), True
+    return report_to_dict(r), is_new
 
 
 # ─── Lifecycle mutations ──────────────────────────────────────────────────────

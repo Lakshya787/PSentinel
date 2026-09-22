@@ -93,6 +93,42 @@ export function AuthProvider({ children }) {
     return data.user
   }, [_applyToken])
 
+  const demoLogin = useCallback(async (role = 'VET', name = 'Dr. Deshmukh', phone = '9876543210') => {
+    // Fixed demo passwords for each persona
+    const DEMO_PASSWORD = 'Demo@1234'
+
+    try {
+      // Try to register first (idempotent — if account exists, catch and login)
+      let data
+      try {
+        data = await api.register({ name, phone, password: DEMO_PASSWORD, role })
+      } catch (err) {
+        if (err.status === 409 || (err.message && err.message.toLowerCase().includes('already'))) {
+          // Already registered — just login
+          data = await api.login({ phone, password: DEMO_PASSWORD })
+        } else {
+          throw err
+        }
+      }
+      _applyToken(data.access_token)
+      return data.user
+    } catch (err) {
+      // Backend unreachable — fall back to local-only mock JWT (read-only mode)
+      console.warn('[AuthContext] Backend unavailable for demoLogin, using mock JWT:', err?.message)
+      const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+      const payload = btoa(JSON.stringify({
+        sub: `demo-${role.toLowerCase()}-${Date.now()}`,
+        name,
+        phone,
+        role,
+        exp: Math.floor(Date.now() / 1000) + (7 * 24 * 3600),
+      }))
+      const mockToken = `${header}.${payload}.demo-signature`
+      _applyToken(mockToken)
+      return { id: `demo-${role.toLowerCase()}`, name, phone, role }
+    }
+  }, [_applyToken])
+
   const logout = useCallback(() => {
     clearToken()
     setToken(null)
@@ -100,7 +136,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, demoLogin, logout }}>
       {children}
     </AuthContext.Provider>
   )

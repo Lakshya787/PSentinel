@@ -1,16 +1,23 @@
 """
 app/main.py — Pashu Sentinel FastAPI application factory & entry point.
+
+SQLite edition:
+  - Tables created automatically at startup via Base.metadata.create_all()
+  - Demo villages seeded on first run (Pune / Maharashtra region)
+  - ML models trained from DB on startup
 """
 from __future__ import annotations
 
 import logging
+import uuid
 from contextlib import asynccontextmanager
 from copy import deepcopy
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.session import get_db
+from app.db.session import Base, engine, get_db
 from app.repositories import cases as case_repo
 from app.routers.auth import router as auth_router
 from app.routers.cases import router as cases_router
@@ -29,22 +36,69 @@ from app.services.risk_engine import calculate_risk
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pashu.api")
 
+# ─── Demo village seed data (Pune district, Maharashtra) ─────────────────────
+_DEMO_VILLAGES = [
+    {"name": "Uruli Kanchan", "taluk": "Haveli",   "district": "Pune",    "state": "Maharashtra", "lat": 18.4835, "lng": 74.0741, "livestock_count": 1200, "fmd_vax_coverage": 0.72},
+    {"name": "Jejuri",        "taluk": "Purandar",  "district": "Pune",    "state": "Maharashtra", "lat": 18.2732, "lng": 74.1566, "livestock_count": 980,  "fmd_vax_coverage": 0.65},
+    {"name": "Baramati",      "taluk": "Baramati",  "district": "Pune",    "state": "Maharashtra", "lat": 18.1518, "lng": 74.5816, "livestock_count": 1450, "fmd_vax_coverage": 0.80},
+    {"name": "Saswad",        "taluk": "Purandar",  "district": "Pune",    "state": "Maharashtra", "lat": 18.3428, "lng": 74.0305, "livestock_count": 870,  "fmd_vax_coverage": 0.60},
+    {"name": "Khed",          "taluk": "Khed",      "district": "Pune",    "state": "Maharashtra", "lat": 18.8374, "lng": 73.9941, "livestock_count": 1100, "fmd_vax_coverage": 0.75},
+    {"name": "Junnar",        "taluk": "Junnar",    "district": "Pune",    "state": "Maharashtra", "lat": 19.2056, "lng": 73.8800, "livestock_count": 1350, "fmd_vax_coverage": 0.68},
+    {"name": "Shirur",        "taluk": "Shirur",    "district": "Pune",    "state": "Maharashtra", "lat": 18.8266, "lng": 74.3688, "livestock_count": 920,  "fmd_vax_coverage": 0.70},
+    {"name": "Indapur",       "taluk": "Indapur",   "district": "Pune",    "state": "Maharashtra", "lat": 18.1128, "lng": 75.0205, "livestock_count": 1600, "fmd_vax_coverage": 0.55},
+    {"name": "Bhor",          "taluk": "Bhor",      "district": "Pune",    "state": "Maharashtra", "lat": 18.1533, "lng": 73.8460, "livestock_count": 760,  "fmd_vax_coverage": 0.63},
+    {"name": "Ambegaon",      "taluk": "Ambegaon",  "district": "Pune",    "state": "Maharashtra", "lat": 19.1233, "lng": 73.7500, "livestock_count": 1050, "fmd_vax_coverage": 0.71},
+    {"name": "Osmanabad",     "taluk": "Osmanabad", "district": "Osmanabad","state": "Maharashtra","lat": 18.1808, "lng": 76.0395, "livestock_count": 2100, "fmd_vax_coverage": 0.50},
+    {"name": "Latur",         "taluk": "Latur",     "district": "Latur",   "state": "Maharashtra", "lat": 18.4088, "lng": 76.5604, "livestock_count": 1890, "fmd_vax_coverage": 0.48},
+]
+
+
+def _seed_villages(db):
+    """Insert demo villages if the villages table is empty."""
+    from app.models.village import Village
+    if db.query(Village).count() > 0:
+        return
+    for v in _DEMO_VILLAGES:
+        db.add(Village(
+            id               = str(uuid.uuid4()),
+            name             = v["name"],
+            taluk            = v["taluk"],
+            district         = v["district"],
+            state            = v["state"],
+            lat              = v["lat"],
+            lng              = v["lng"],
+            livestock_count  = v["livestock_count"],
+            fmd_vax_coverage = v["fmd_vax_coverage"],
+        ))
+    db.commit()
+    logger.info(f"Seeded {len(_DEMO_VILLAGES)} demo villages.")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Startup: train ML models from DB seed data.
-    Models are retrained from live DB rows so they stay current.
+    Startup:
+      1. Create all SQLite tables (idempotent — safe to call every restart)
+      2. Seed demo villages if empty
+      3. Train ML models from existing DB reports
     """
-    logger.info("=== Pashu Sentinel ML Engine — Startup Training ===")
+    logger.info("=== Pashu Sentinel — SQLite Startup ===")
+
+    # 1. Create tables
+    Base.metadata.create_all(bind=engine)
+    logger.info("SQLite tables created / verified.")
+
+    # 2. Seed villages
     try:
         db = next(get_db())
+        _seed_villages(db)
         seed_cases = case_repo.list_reports(db, limit=500)
         db.close()
     except Exception as exc:
-        logger.warning(f"DB unavailable at startup ({exc}); ML models will train on first request.")
+        logger.warning(f"DB issue at startup ({exc}); continuing with empty seed.")
         seed_cases = []
 
+    # 3. Train ML models
     enriched = []
     for c in seed_cases:
         ec = deepcopy(c)
@@ -68,11 +122,11 @@ app = FastAPI(
     title="Pashu Sentinel API",
     description=(
         "Smart livestock disease early-warning platform.\n\n"
-        "**Database**: PostgreSQL + PostGIS (real spatial queries).\n"
+        "**Database**: SQLite (zero-server, single .db file).\n"
         "**Intelligence Engine** (ref.md §10):\n"
         "- Tier 1: Isolation Forest case-level triage\n"
         "- Tier 2: EWMA + Noufaily-Farrington temporal aberration\n"
-        "- Tier 3: ST_ClusterDBSCAN spatio-temporal clustering (PostGIS)"
+        "- Tier 3: DBSCAN spatio-temporal clustering (sklearn + Haversine)"
     ),
     version="2.0.0",
     lifespan=lifespan,
@@ -80,7 +134,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|172\..*|192\..*)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -29,11 +29,9 @@ function ProtectedRoute({ children, roles }) {
 }
 
 // ─── Root redirect ────────────────────────────────────────────────────────────
-// '/' now sends logged-in users to their default page; guests to /login.
+// Default route '/' always lands directly on the Login Page.
 function RootRedirect() {
-  const { user } = useAuth()
-  if (!user) return <Navigate to="/login" replace />
-  return <Navigate to={user.role === 'FARMER' ? '/field-report' : '/dashboard'} replace />
+  return <Navigate to="/login" replace />
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -57,10 +55,10 @@ function AppRoutes() {
           }
         />
 
-        {/* Vet / DVO dashboard routes inside AppLayout shell */}
+        {/* App layout shell for Dashboard, Cases, Map, Alerts, Actions */}
         <Route
           element={
-            <ProtectedRoute roles={['VET', 'DVO']}>
+            <ProtectedRoute roles={['FARMER', 'VET', 'DVO']}>
               <AppLayout />
             </ProtectedRoute>
           }

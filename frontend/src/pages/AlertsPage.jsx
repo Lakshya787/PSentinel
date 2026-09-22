@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Bell, Globe, CheckCircle2, Send, Users,
   AlertTriangle, Map, Megaphone, Languages,
+  Volume2, VolumeX, Play, Pause, BookOpen, ShieldCheck, Sparkles, X,
 } from 'lucide-react'
 import { useCaseStore } from '../hooks/useCaseStore'
 import WorkflowStepper from '../components/ui/WorkflowStepper'
@@ -99,12 +100,37 @@ export default function AlertsPage() {
   const navigate                  = useNavigate()
   const { getCase, updateAlert }  = useCaseStore()
   const [language, setLanguage]   = useState('marathi')
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false)
+  const [showEvmModal, setShowEvmModal]     = useState(false)
 
   const c           = getCase(PRIMARY_CASE_ID)
   if (!c) return null
 
   const alertState  = c.alert?.status ?? 'NONE'
   const content     = ALERT_CONTENT[language]
+
+  function toggleVoicePlay() {
+    if (isPlayingVoice) {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+      setIsPlayingVoice(false)
+      return
+    }
+    setIsPlayingVoice(true)
+    if ('speechSynthesis' in window) {
+      const textToSpeak = language === 'marathi'
+        ? "सावधान! खंडाळा आणि आजूबाजूच्या परिसरात लाळ्या खुरकूत आजाराची पुष्टी झाली आहे. आजारी जनावरांना वेगळे ठेवा आणि हालचालींवर बंधन पाळा."
+        : language === 'hindi'
+          ? "चेतावनी! खंडाला क्षेत्र में खुरपका-मुँहपका रोग की पुष्टि हुई है। बीमार पशुओं को तुरंत अलग करें।"
+          : "Urgent advisory. Foot and Mouth Disease confirmed in Khandala area. Immediately isolate sick cattle."
+      const utterance = new SpeechSynthesisUtterance(textToSpeak)
+      utterance.lang = language === 'marathi' ? 'mr-IN' : language === 'hindi' ? 'hi-IN' : 'en-US'
+      utterance.onend = () => setIsPlayingVoice(false)
+      utterance.onerror = () => setIsPlayingVoice(false)
+      window.speechSynthesis.speak(utterance)
+    } else {
+      setTimeout(() => setIsPlayingVoice(false), 5000)
+    }
+  }
 
   function handleGenerate() {
     updateAlert(PRIMARY_CASE_ID, {
@@ -200,6 +226,42 @@ export default function AlertsPage() {
                   {alertState === 'NONE' ? 'Not Generated' : alertState === 'READY' ? 'READY TO SEND' : alertState}
                 </span>
               </div>
+
+              {/* IVR Voice Announcement Player (ref.md §24) */}
+              <div className="bg-slate-900 text-white px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <button
+                    type="button"
+                    onClick={toggleVoicePlay}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0 ${
+                      isPlayingVoice ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/30' : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
+                    title={isPlayingVoice ? 'Pause' : 'Play IVR Voice Announcement'}
+                  >
+                    {isPlayingVoice ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                  </button>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                      <span>IVR Voice Call Broadcast ({content.label})</span>
+                      {isPlayingVoice && <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono">1962 Telephony Gateway · 450 dairy farmers</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {[40, 70, 90, 45, 80, 60, 100, 50, 75, 30, 85, 65, 95, 40].map((h, idx) => (
+                    <span
+                      key={idx}
+                      className={`w-1 rounded-full transition-all duration-300 ${
+                        isPlayingVoice ? 'bg-amber-400 animate-pulse' : 'bg-slate-700'
+                      }`}
+                      style={{ height: isPlayingVoice ? `${Math.max(6, (h * (idx % 3 + 1)) % 24)}px` : '8px' }}
+                    />
+                  ))}
+                </div>
+              </div>
+
               <div className="px-4 py-4">
                 <p className="text-xs font-bold text-slate-700 mb-2">{content.title}</p>
                 <pre className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed font-sans">
@@ -216,7 +278,17 @@ export default function AlertsPage() {
 
             {/* Action buttons */}
             <div className="card p-4 space-y-3">
-              <h2 className="section-title">Alert Actions</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="section-title mb-0">Alert Actions</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowEvmModal(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg transition-colors"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>EVM First-Aid SOP</span>
+                </button>
+              </div>
 
               {alertState === 'NONE' && (
                 <button onClick={handleGenerate} className="btn-primary w-full justify-center">
@@ -337,6 +409,86 @@ export default function AlertsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── NDDB Ethnoveterinary Medicine (EVM) Modal (ref.md §14) ──────────────── */}
+      {showEvmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-surface-border flex items-center justify-between bg-emerald-50/50">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-emerald-700" />
+                <div>
+                  <h3 className="text-sm font-bold text-emerald-950">NDDB Validated EVM First-Aid SOP</h3>
+                  <p className="text-[11px] text-emerald-700">Verified Herbal Protocol for Vesicular Lesions</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEvmModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Strict Veterinary Guardrail Alert Box */}
+              <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl space-y-1">
+                <div className="flex items-center gap-2 text-red-800 font-bold text-xs">
+                  <ShieldCheck className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>MANDATORY VETERINARY SAFETY GUARDRAIL (ref.md §14.1)</span>
+                </div>
+                <p className="text-[11px] text-red-700 leading-relaxed">
+                  <strong>Strict Protocol:</strong> Autonomous algorithmic prescription of <strong>Schedule H antibiotics</strong> (e.g. Oxytetracycline, Enrofloxacin) or systemic prescription drugs is strictly prohibited. This formulation serves solely as non-antibiotic bio-supportive first aid while registered veterinary clinical attendance is underway.
+                </p>
+              </div>
+
+              {/* Formulation Ingredients */}
+              <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/60">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide mb-2.5">
+                  Verified Bio-Supportive Herbal Formulation
+                </h4>
+                <div className="space-y-2 text-xs text-slate-700">
+                  <div className="flex justify-between pb-1.5 border-b border-slate-200">
+                    <span className="font-semibold">Turmeric (Curcuma longa) Powder</span>
+                    <span className="font-mono text-emerald-700">50 grams (Natural Antiseptic)</span>
+                  </div>
+                  <div className="flex justify-between pb-1.5 border-b border-slate-200">
+                    <span className="font-semibold">Aloe Vera (A. barbadensis) Fresh Pulp</span>
+                    <span className="font-mono text-emerald-700">100 grams (Mucosal Soothing)</span>
+                  </div>
+                  <div className="flex justify-between pb-1.5 border-b border-slate-200">
+                    <span className="font-semibold">Cold-Pressed Mustard Oil</span>
+                    <span className="font-mono text-emerald-700">150 ml (Protective Barrier)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-semibold">Pure Rock Salt (Sendha Namak)</span>
+                    <span className="font-mono text-emerald-700">20 grams (Osmotic Decontamination)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Application instructions */}
+              <div className="space-y-1.5 text-xs text-slate-600">
+                <p className="font-bold text-slate-800">Application Instructions for Pashu Sakhis:</p>
+                <ol className="list-decimal list-inside space-y-1 pl-1 text-[11px] text-slate-700">
+                  <li>Thoroughly blend ingredients into a sterile homogenous paste.</li>
+                  <li>Clean mouth and hoof interdigital cleft with sterile saline or potassium permanganate (0.01%).</li>
+                  <li>Gently apply herbal paste to ruptured mucosal vesicles 3 times daily.</li>
+                  <li>Ensure access to clean water mixed with jaggery (gud) to sustain caloric intake.</li>
+                </ol>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowEvmModal(false)}
+                className="btn-primary w-full justify-center text-xs py-2.5"
+              >
+                Understood &amp; Close SOP
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -46,7 +46,7 @@ function KPICard({ icon: Icon, label, value, sub, iconBg, valueCls, onClick }) {
 
 // ─── Case row ─────────────────────────────────────────────────────────────────
 function CaseRow({ c, isPrimary, onClick }) {
-  const hex = riskLevelHex(c.risk.level)
+  const hex = riskLevelHex(c.risk?.level ?? 'LOW')
   return (
     <button
       onClick={onClick}
@@ -525,7 +525,7 @@ export default function Dashboard() {
             >
               <h3 className="section-title mb-3">Recent Activity</h3>
               <div className="space-y-3">
-                {casesByRisk.slice(0, 4).map(c => (
+                {displayCases.slice(0, 4).map(c => (
                   <button
                     key={c.id}
                     onClick={() => navigate(`/cases/${c.id}`)}
@@ -533,7 +533,7 @@ export default function Dashboard() {
                   >
                     <span
                       className="mt-1.5 w-2 h-2 rounded-full shrink-0"
-                      style={{ background: riskLevelHex(c.risk.level) }}
+                      style={{ background: riskLevelHex(c.risk?.level ?? 'LOW') }}
                     />
                     <div className="flex-1 min-w-0">
                       <p
@@ -546,9 +546,9 @@ export default function Dashboard() {
                     </div>
                     <span
                       className="text-[10px] font-black shrink-0"
-                      style={{ color: riskLevelHex(c.risk.level) }}
+                      style={{ color: riskLevelHex(c.risk?.level ?? 'LOW') }}
                     >
-                      {c.risk.score}
+                      {c.risk?.score ?? '—'}
                     </span>
                   </button>
                 ))}

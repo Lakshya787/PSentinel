@@ -89,7 +89,7 @@ function Input({ id, icon: Icon, type = 'text', placeholder, value, onChange, au
 
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function LoginPage() {
-  const { login, register } = useAuth()
+  const { login, register, demoLogin } = useAuth()
   const navigate = useNavigate()
 
   const [tab, setTab] = useState('login') // 'login' | 'register'
@@ -106,6 +106,19 @@ export default function LoginPage() {
 
   function defaultRoute(userRole) {
     return userRole === 'FARMER' ? '/field-report' : '/dashboard'
+  }
+
+  async function handleQuickDemo(demoRole, demoName, demoPhone) {
+    setLoading(true)
+    setError('')
+    try {
+      const user = await demoLogin(demoRole, demoName, demoPhone)
+      navigate(defaultRoute(user.role), { replace: true })
+    } catch (err) {
+      setError(err.message || 'Demo login failed. Is the backend running?')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleSubmit(e) {
@@ -179,9 +192,69 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Quick Demo Personas */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem', textAlign: 'center' }}>
+            ⚡ 1-Click Persona Login (Video Demo)
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.4rem' }}>
+            <button
+              type="button"
+              id="demo-farmer"
+              onClick={() => handleQuickDemo('FARMER', 'Sunita Gawade (Pashu Sakhi)', '9876543201')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.55rem 0.75rem', borderRadius: '0.75rem',
+                border: '1px solid rgba(134,239,172,0.35)', background: 'rgba(134,239,172,0.08)',
+                color: '#86efac', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                textAlign: 'left', transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(134,239,172,0.18)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(134,239,172,0.08)'}
+            >
+              <span>👩‍🌾 Sunita (Pashu Sakhi · Khandala)</span>
+              <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>Field Report →</span>
+            </button>
+            <button
+              type="button"
+              id="demo-vet"
+              onClick={() => handleQuickDemo('VET', 'Dr. Deshmukh (BVO Junnar)', '9876543202')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.55rem 0.75rem', borderRadius: '0.75rem',
+                border: '1px solid rgba(103,232,249,0.35)', background: 'rgba(103,232,249,0.08)',
+                color: '#67e8f9', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                textAlign: 'left', transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(103,232,249,0.18)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(103,232,249,0.08)'}
+            >
+              <span>🩺 Dr. Deshmukh (Block Vet · Junnar)</span>
+              <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>Vet Triage →</span>
+            </button>
+            <button
+              type="button"
+              id="demo-dvo"
+              onClick={() => handleQuickDemo('DVO', 'Dr. Shinde (DVO Pune)', '9876543203')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.55rem 0.75rem', borderRadius: '0.75rem',
+                border: '1px solid rgba(251,191,36,0.35)', background: 'rgba(251,191,36,0.08)',
+                color: '#fbbf24', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                textAlign: 'left', transition: 'all 0.15s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(251,191,36,0.18)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(251,191,36,0.08)'}
+            >
+              <span>🏛️ Dr. Shinde (DVO Command Centre)</span>
+              <span style={{ fontSize: '0.65rem', opacity: 0.8 }}>Command Map →</span>
+            </button>
+          </div>
+        </div>
+
         {/* Tab switcher */}
         <div style={{
-          display: 'flex', gap: '0.5rem', marginBottom: '1.5rem',
+          display: 'flex', gap: '0.5rem', marginBottom: '1.25rem',
           background: 'rgba(0,0,0,0.2)', borderRadius: '0.875rem', padding: '0.25rem',
         }}>
           {['login', 'register'].map((t) => (
@@ -198,7 +271,7 @@ export default function LoginPage() {
                 boxShadow: tab === t ? '0 2px 8px rgba(0,0,0,0.2)' : 'none',
               }}
             >
-              {t === 'login' ? 'Log In' : 'Register'}
+              {t === 'login' ? 'Standard Login' : 'New Registration'}
             </button>
           ))}
         </div>

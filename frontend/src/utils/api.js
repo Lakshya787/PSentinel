@@ -2,7 +2,8 @@
 // Thin wrapper around the FastAPI backend.
 // Auto-attaches the JWT Bearer token from localStorage on every request.
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Uses relative path by default so Vite proxy forwards to backend on any host/port
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 export const TOKEN_KEY = 'ps_auth_token'
 
@@ -72,12 +73,31 @@ export const api = {
   /** GET /cases/:id — single case with risk */
   getCase: (id) => request('GET', `/cases/${id}`),
 
+  /** GET /cases/:id/zones — containment rings GeoJSON */
+  getCaseZones: (id) => request('GET', `/cases/${id}/zones`),
+
   /** POST /cases/:id/action — advance status or assign vet (VET/DVO only) */
   caseAction: (id, body) => request('POST', `/cases/${id}/action`, body),
 
+  // ── Spatial / Clusters ─────────────────────────────────────────────────────
+  /** GET /clusters — DBSCAN spatio-temporal outbreak clusters */
+  getClusters: () => request('GET', '/clusters'),
+
+  /** GET /neighbours?lat=&lng=&syndrome=&radius_m= */
+  getNeighbours: (params = {}) => {
+    const qs = new URLSearchParams(params).toString()
+    return request('GET', `/neighbours?${qs}`)
+  },
+
+  // ── Risk ───────────────────────────────────────────────────────────────────
   /** GET /risk/:id — risk score for a case */
   getRisk: (id) => request('GET', `/risk/${id}`),
 
-  /** Health check */
+  // ── Health ─────────────────────────────────────────────────────────────────
+  /** GET / — health check */
   health: () => request('GET', '/'),
+
+  /** GET /health/db — database connectivity check */
+  healthDb: () => request('GET', '/health/db'),
 }
+

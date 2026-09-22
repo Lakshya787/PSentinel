@@ -16,12 +16,30 @@ export const RISK_LEVELS = {
 
 /**
  * Calculate composite risk score.
- * COW-1024: { clinical:92, vaccination:80, environmental:85, spatial:95 } → { score:88, level:'CRITICAL' }
+ * Supports both object argument: { clinical, vaccination, environmental, spatial }
+ * and positional arguments: calculateRisk(clinical, vaccination, environmental, spatial).
  *
- * @param {{ clinical: number, vaccination: number, environmental: number, spatial: number }} factors
+ * @param {object|number} arg1 - factors object or clinical score
+ * @param {number} [arg2] - vaccination score
+ * @param {number} [arg3] - environmental score
+ * @param {number} [arg4] - spatial score
  * @returns {{ score: number, level: string, levelMeta: object, factors: object }}
  */
-export function calculateRisk({ clinical, vaccination, environmental, spatial }) {
+export function calculateRisk(arg1, arg2, arg3, arg4) {
+  let clinical = 50, vaccination = 50, environmental = 50, spatial = 50
+
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    clinical      = Number(arg1.clinical ?? 50)
+    vaccination   = Number(arg1.vaccination ?? 50)
+    environmental = Number(arg1.environmental ?? 50)
+    spatial       = Number(arg1.spatial ?? 50)
+  } else {
+    clinical      = Number(arg1 ?? 50)
+    vaccination   = Number(arg2 ?? 50)
+    environmental = Number(arg3 ?? 50)
+    spatial       = Number(arg4 ?? 50)
+  }
+
   const raw =
     clinical      * RISK_WEIGHTS.clinical +
     vaccination   * RISK_WEIGHTS.vaccination +
