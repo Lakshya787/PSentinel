@@ -19,6 +19,10 @@ passlib[bcrypt]     # Password hashing (bcrypt)
 bcrypt==4.0.1       # Pinned: bcrypt>=5 breaks passlib 1.7.x (no __about__ attr)
 python-jose[cryptography]  # HS256 JWT signing + verification
 
+# ─── RAG — Veterinary Knowledge System (ref.md §14) ──────────────────────────
+chromadb            # Local vector store (persistent, cosine similarity)
+google-generativeai # Gemini 1.5 Flash (generation) + text-embedding-004
+
 # ─── Testing / Dev ────────────────────────────────────────────────────────────
 httpx               # Needed by FastAPI TestClient
 pytest

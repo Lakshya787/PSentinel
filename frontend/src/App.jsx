@@ -11,6 +11,7 @@ import CasesListPage from './pages/CasesListPage'
 import LabPage from './pages/LabPage'
 import AlertsPage from './pages/AlertsPage'
 import ActionsPage from './pages/ActionsPage'
+import VetChatWidget from './components/VetChatWidget'
 
 // ─── ProtectedRoute ───────────────────────────────────────────────────────────
 // Redirects to /login if unauthenticated.
@@ -83,6 +84,7 @@ export default function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <VetChatWidget />
     </AuthProvider>
   )
 }
