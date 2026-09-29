@@ -72,7 +72,7 @@ class SeedResponse(BaseModel):
 )
 async def rag_chat(
     request: ChatRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """RAG-powered veterinary Q&A endpoint."""
     from app.services.rag_service import answer_query
