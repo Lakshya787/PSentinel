@@ -6,12 +6,12 @@ Pashu Sentinel — RAG-Based Veterinary Knowledge System
 Architecture:
   • Vector store  : ChromaDB (local, persistent on disk)
   • Embeddings    : Local ONNX all-MiniLM-L6-v2 (fast, reliable, zero API costs)
-  • Generation    : Google Gemini (with robust ICAR/DAHD knowledge base fallback)
+  • Generation    : Groq API — llama-3.3-70b-versatile (fast, free tier available)
   • Retrieval     : Cosine similarity top-k (ChromaDB native)
   • Safety guards : Strict guardrails — never prescribe Schedule H drugs; BVO escalation
 
 Environment variables:
-  GEMINI_API_KEY=<your-google-ai-studio-key>
+  GROQ_API_KEY=<your-groq-api-key from https://console.groq.com>
 ─────────────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
@@ -30,18 +30,14 @@ logger = logging.getLogger("pashu.rag")
 # ─── Lazy-initialised singletons ─────────────────────────────────────────────
 _chroma_client: Optional[chromadb.PersistentClient] = None
 _collection = None
-_gemini_configured = False
+_groq_client = None
 
 # Persist the vector store next to the SQLite DB
 _CHROMA_PATH = str(Path(__file__).resolve().parents[2] / "chroma_db")
 _COLLECTION_NAME = "vet_knowledge"
 
-# Candidate Gemini models in priority order
-_GEMINI_CANDIDATE_MODELS = [
-    "models/gemini-2.5-flash",
-    "models/gemini-3.8-flash",
-    "models/gemini-flash-latest",
-]
+# Groq model preference order (fast inference, free tier)
+_GROQ_MODEL = "qwen/qwen3.8-27b"
 
 # ─── SYSTEM PROMPT (safety guardrails) ───────────────────────────────────────
 _SYSTEM_PROMPT = """
@@ -88,24 +84,23 @@ def _get_chroma() -> tuple:
     return _chroma_client, _collection
 
 
-def _configure_gemini() -> bool:
-    """Configure Gemini API. Returns True if configured successfully."""
-    global _gemini_configured
-    if _gemini_configured:
-        return True
-    api_key = os.getenv("GEMINI_API_KEY")
+def _get_groq_client():
+    """Lazy-init Groq client. Returns client or None."""
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        logger.warning("GEMINI_API_KEY not set — RAG will operate with direct knowledge-retrieval synthesis.")
-        return False
+        logger.warning("GROQ_API_KEY not set — RAG will use knowledge-base synthesis mode.")
+        return None
     try:
-        import google.generativeai as genai  # type: ignore
-        genai.configure(api_key=api_key)
-        _gemini_configured = True
-        logger.info("Gemini API configured successfully.")
-        return True
+        from groq import Groq  # type: ignore
+        _groq_client = Groq(api_key=api_key)
+        logger.info("Groq client initialised successfully.")
+        return _groq_client
     except Exception as exc:
-        logger.error(f"Failed to configure Gemini: {exc}")
-        return False
+        logger.error(f"Failed to initialise Groq client: {exc}")
+        return None
 
 
 # ─── KNOWLEDGE BASE SEEDING ───────────────────────────────────────────────────
@@ -274,14 +269,12 @@ def answer_query(query: str, chat_history: list[dict] | None = None) -> dict:
     # 1. Retrieve context from ChromaDB
     sources = retrieve_context(query, n_results=4)
 
-    # 2. Check if Gemini is configured
-    gemini_ready = _configure_gemini()
+    # 2. Try Groq LLM generation
+    groq_client = _get_groq_client()
     answer: Optional[str] = None
     fallback_used = False
 
-    if gemini_ready:
-        import google.generativeai as genai  # type: ignore
-
+    if groq_client:
         if not sources:
             context_text = "No specific documents found in the knowledge base for this query."
         else:
@@ -292,40 +285,45 @@ def answer_query(query: str, chat_history: list[dict] | None = None) -> dict:
                 )
             context_text = "\n\n---\n\n".join(context_parts)
 
+        # Build messages list for Groq chat completions
+        messages: list[dict] = [{"role": "system", "content": _SYSTEM_PROMPT}]
+
+        # Include prior conversation turns
+        if chat_history:
+            for turn in chat_history:
+                role = turn.get("role", "user")
+                content_parts = turn.get("parts", [])
+                content = content_parts[0] if content_parts else ""
+                # Groq uses 'assistant' not 'model'
+                messages.append({"role": "assistant" if role == "model" else "user", "content": content})
+
+        # Add the RAG-augmented user message
         augmented_query = (
             f"RELEVANT VETERINARY KNOWLEDGE CONTEXT:\n"
             f"{'='*60}\n"
             f"{context_text}\n"
             f"{'='*60}\n\n"
-            f"USER QUESTION: {query}\n\n"
-            f"Please answer the question using ONLY the context provided above. "
-            f"If the context doesn't fully answer the question, say so clearly and "
-            f"recommend contacting the Block Veterinary Officer."
+            f"FARMER/FIELD WORKER QUESTION: {query}\n\n"
+            f"Please answer directly and specifically based on the context above. "
+            f"If the context doesn't fully cover the question, say so and direct the user "
+            f"to their Block Veterinary Officer (BVO)."
         )
+        messages.append({"role": "user", "content": augmented_query})
 
-        # Try candidate models
-        for model_name in _GEMINI_CANDIDATE_MODELS:
-            try:
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    system_instruction=_SYSTEM_PROMPT,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=0.3,
-                        max_output_tokens=1024,
-                        top_p=0.9,
-                    ),
-                )
-                history = chat_history or []
-                chat = model.start_chat(history=history)
-                response = chat.send_message(augmented_query)
-                if response and response.text:
-                    answer = response.text
-                    break
-            except Exception as exc:
-                logger.warning(f"Model {model_name} failed: {exc}")
-                continue
+        try:
+            response = groq_client.chat.completions.create(
+                model=_GROQ_MODEL,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=1024,
+                top_p=0.9,
+            )
+            answer = response.choices[0].message.content
+            logger.info(f"Groq generation successful ({response.usage.total_tokens} tokens).")
+        except Exception as exc:
+            logger.warning(f"Groq generation failed: {exc}")
 
-    # If Gemini was not ready, failed, or project access was denied, use verified knowledge synthesis
+    # If Groq unavailable or failed, use verified knowledge synthesis
     if not answer:
         logger.info("Using ICAR/DAHD knowledge base synthesis mode.")
         answer = _synthesize_from_context(query, sources)
@@ -347,11 +345,12 @@ def rag_health() -> dict:
     """Returns RAG system health status."""
     _, collection = _get_chroma()
     doc_count = collection.count()
-    gemini_ok = _configure_gemini()
+    groq_ok = _get_groq_client() is not None
     return {
         "vector_store": "chromadb",
         "chroma_path": _CHROMA_PATH,
         "documents_indexed": doc_count,
-        "gemini_configured": gemini_ok,
+        "groq_configured": groq_ok,
+        "llm_model": _GROQ_MODEL if groq_ok else "synthesis-fallback",
         "status": "ready" if doc_count > 0 else "degraded",
     }

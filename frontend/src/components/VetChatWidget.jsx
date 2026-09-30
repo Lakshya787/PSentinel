@@ -120,7 +120,7 @@ export default function VetChatWidget() {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          query,
+          query: q,
           history: history.length > 0 ? history : null,
         }),
       })

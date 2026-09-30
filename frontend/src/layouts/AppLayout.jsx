@@ -62,30 +62,10 @@ export default function AppLayout() {
             }}>
               {rs.label}
             </span>
-
             {/* Name */}
             <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3d3d30' }}>
               {user.name}
             </span>
-
-            {/* Logout */}
-            <button
-              id="btn-logout"
-              onClick={handleLogout}
-              title="Log out"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.3rem',
-                padding: '0.3rem 0.6rem', borderRadius: '0.5rem',
-                background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)',
-                color: '#dc2626', fontSize: '0.72rem', fontWeight: 600,
-                cursor: 'pointer', transition: 'background 0.15s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(220,38,38,0.15)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(220,38,38,0.08)')}
-            >
-              <LogOut style={{ width: '0.8rem', height: '0.8rem' }} />
-              Logout
-            </button>
           </div>
         )}
 

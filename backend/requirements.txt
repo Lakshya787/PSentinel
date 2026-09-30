@@ -21,7 +21,7 @@ python-jose[cryptography]  # HS256 JWT signing + verification
 
 # ─── RAG — Veterinary Knowledge System (ref.md §14) ──────────────────────────
 chromadb            # Local vector store (persistent, cosine similarity)
-google-generativeai # Gemini 1.5 Flash (generation) + text-embedding-004
+groq                # Groq LLM API — llama-3.3-70b-versatile (generation)
 
 # ─── Testing / Dev ────────────────────────────────────────────────────────────
 httpx               # Needed by FastAPI TestClient
