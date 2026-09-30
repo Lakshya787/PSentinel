@@ -9,10 +9,11 @@ import { useAuth } from '../../context/AuthContext'
 // ─── Nav items per role ───────────────────────────────────────────────────────
 const NAV_BY_ROLE = {
   FARMER: [
+    { to: '/farmer',       icon: LayoutDashboard, label: 'My Dashboard', desc: 'Herd health & alerts' },
     { to: '/field-report', icon: ClipboardList,   label: 'Report Case',  desc: 'Report sick animals' },
   ],
   VET: [
-    { to: '/dashboard',    icon: LayoutDashboard, label: 'Triage Board', desc: 'Prioritised case queue' },
+    { to: '/vet',          icon: LayoutDashboard, label: 'Triage Board', desc: 'Prioritised case queue' },
     { to: '/cases/all',    icon: FolderOpen,      label: 'Cases',        desc: 'All reported cases' },
     { to: '/lab',          icon: FlaskConical,    label: 'Laboratory',   desc: 'Lab referrals & results' },
     { to: '/alerts',       icon: Bell,            label: 'Alerts',       desc: 'Active outbreak alerts' },
@@ -20,12 +21,11 @@ const NAV_BY_ROLE = {
     { to: '/field-report', icon: PlusCircle,      label: 'New Report',   desc: 'Submit field report' },
   ],
   DVO: [
-    { to: '/dashboard',    icon: LayoutDashboard, label: 'Command',      desc: 'District overview' },
+    { to: '/dvo',          icon: LayoutDashboard, label: 'Command',      desc: 'District command centre' },
     { to: '/map',          icon: Map,             label: 'Risk Map',     desc: 'Disease spread map' },
     { to: '/alerts',       icon: Bell,            label: 'Alerts',       desc: 'District-wide alerts' },
     { to: '/cases/all',    icon: FolderOpen,      label: 'All Cases',    desc: 'District case ledger' },
     { to: '/actions',      icon: Zap,             label: 'Actions',      desc: 'Response & containment' },
-    { to: '/field-report', icon: PlusCircle,      label: 'New Report',   desc: 'Submit field report' },
   ],
 }
 
