@@ -106,6 +106,7 @@ function AppRoutes() {
           <Route path="/cases/:id"  element={<CaseDetail />} />
           <Route path="/alerts"     element={<AlertsPage />} />
           <Route path="/actions"    element={<ActionsPage />} />
+          <Route path="/field-report" element={<FieldReport />} />
         </Route>
 
         {/* Fallback */}

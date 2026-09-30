@@ -48,24 +48,44 @@ export default function AppLayout() {
         {user && (
           <div
             style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               gap: '0.625rem', padding: '0.5rem 1.25rem',
               borderBottom: '1px solid rgba(222,216,207,0.4)',
               background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(8px)',
             }}
           >
-            {/* Role badge */}
-            <span style={{
-              background: rs.bg, color: rs.color,
-              padding: '0.2rem 0.6rem', borderRadius: '99px',
-              fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em',
-            }}>
-              {rs.label}
-            </span>
-            {/* Name */}
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3d3d30' }}>
-              {user.name}
-            </span>
+            {/* Left: Role badge + name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{
+                background: rs.bg, color: rs.color,
+                padding: '0.2rem 0.6rem', borderRadius: '99px',
+                fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em',
+              }}>
+                {rs.label}
+              </span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#3d3d30' }}>
+                {user.name}
+              </span>
+            </div>
+
+            {/* Right: Logout button (always visible — mobile has no sidebar) */}
+            <button
+              id="btn-logout-top"
+              onClick={handleLogout}
+              title="Sign out"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.375rem',
+                fontSize: '0.72rem', fontWeight: 700, color: '#a85448',
+                background: 'rgba(168,84,72,0.08)', border: '1px solid rgba(168,84,72,0.2)',
+                borderRadius: '0.625rem', padding: '0.3rem 0.625rem',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,84,72,0.16)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(168,84,72,0.08)')}
+            >
+              <LogOut style={{ width: '0.8rem', height: '0.8rem' }} />
+              Sign out
+            </button>
           </div>
         )}
 

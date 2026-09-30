@@ -128,6 +128,13 @@ export default function FieldReport() {
     navigate('/login', { replace: true })
   }
 
+  // Navigate back to the correct dashboard for this role
+  function roleHome() {
+    if (user?.role === 'FARMER') return '/farmer'
+    if (user?.role === 'DVO')    return '/dvo'
+    return '/vet'
+  }
+
   // Load demo if query param
   function loadDemo() {
     setForm(DEMO_FORM)
@@ -485,10 +492,20 @@ export default function FieldReport() {
     return (
       <div className="min-h-full bg-surface-muted pb-8">
         <header className="sticky top-0 z-20 bg-white border-b border-surface-border px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="p-1.5 rounded-lg hover:bg-slate-100">
+          <button onClick={() => navigate(roleHome())} className="p-1.5 rounded-lg hover:bg-slate-100">
             <ChevronLeft className="w-5 h-5 text-slate-600" />
           </button>
           <h1 className="text-sm font-bold text-slate-900">Risk Analysis</h1>
+          <div className="ml-auto flex items-center gap-2">
+            {user && (
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: user.role === 'FARMER' ? '#5d7052' : user.role === 'VET' ? '#0891b2' : '#b45309', background: user.role === 'FARMER' ? 'rgba(93,112,82,0.1)' : user.role === 'VET' ? 'rgba(8,145,178,0.1)' : 'rgba(180,83,9,0.1)', padding: '0.2rem 0.5rem', borderRadius: '99px' }}>
+                {user.role}
+              </span>
+            )}
+            <button id="btn-logout-result" type="button" onClick={handleLogout} title="Log out" className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         </header>
 
         <div className="max-w-lg mx-auto px-4 py-6 space-y-5">

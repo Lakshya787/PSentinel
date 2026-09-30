@@ -4,21 +4,22 @@ import { useAuth } from '../../context/AuthContext'
 
 const BOTTOM_NAV_BY_ROLE = {
   FARMER: [
-    { to: '/field-report', icon: ClipboardList, label: 'Report' },
+    { to: '/farmer',       icon: LayoutDashboard, label: 'Home'    },
+    { to: '/field-report', icon: ClipboardList,   label: 'Report'  },
   ],
   VET: [
-    { to: '/dashboard',    icon: LayoutDashboard, label: 'Triage'  },
+    { to: '/vet',          icon: LayoutDashboard, label: 'Triage'  },
     { to: '/cases/all',    icon: FolderOpen,      label: 'Cases'   },
     { to: '/lab',          icon: FlaskConical,    label: 'Lab'     },
     { to: '/alerts',       icon: Bell,            label: 'Alerts'  },
     { to: '/map',          icon: Map,             label: 'Map'     },
   ],
   DVO: [
-    { to: '/dashboard',    icon: LayoutDashboard, label: 'Command' },
+    { to: '/dvo',          icon: LayoutDashboard, label: 'Command' },
     { to: '/map',          icon: Map,             label: 'Map'     },
     { to: '/alerts',       icon: Bell,            label: 'Alerts'  },
-    { to: '/cases/all',    icon: FolderOpen,      label: 'Cases'   },
     { to: '/actions',      icon: Zap,             label: 'Actions' },
+    { to: '/field-report', icon: FolderOpen,      label: 'Report'  },
   ],
 }
 

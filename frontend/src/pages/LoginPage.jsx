@@ -105,7 +105,10 @@ export default function LoginPage() {
   const [error,   setError]   = useState('')
 
   function defaultRoute(userRole) {
-    return userRole === 'FARMER' ? '/field-report' : '/dashboard'
+    if (userRole === 'FARMER') return '/farmer'
+    if (userRole === 'VET')    return '/vet'
+    if (userRole === 'DVO')    return '/dvo'
+    return '/login'
   }
 
   async function handleQuickDemo(demoRole, demoName, demoPhone) {

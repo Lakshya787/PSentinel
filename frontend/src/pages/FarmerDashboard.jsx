@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ClipboardList, Wifi, WifiOff, PlusCircle, AlertTriangle,
   CheckCircle2, ChevronRight, Heart,
-  MessageCircle, Bell,
+  MessageCircle, Bell, LogOut,
   Sparkles, Stethoscope, BookOpen, Phone,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -121,10 +121,15 @@ const ADVISORY_TIPS = [
 ]
 
 export default function FarmerDashboard() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { isOnline } = useOnlineStatus()
   const navigate = useNavigate()
   const [greeting, setGreeting] = useState('Good morning')
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   useEffect(() => {
     const h = new Date().getHours()
@@ -160,7 +165,7 @@ export default function FarmerDashboard() {
             <p style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', margin: 0 }}>Farmer Portal</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '0.375rem',
             fontSize: '0.7rem', fontWeight: 700,
@@ -171,17 +176,34 @@ export default function FarmerDashboard() {
             {isOnline ? <Wifi style={{ width: '0.875rem', height: '0.875rem' }} /> : <WifiOff style={{ width: '0.875rem', height: '0.875rem' }} />}
             {isOnline ? 'Online' : 'Offline'}
           </div>
+          {/* Field Report shortcut */}
           <button
-            onClick={() => {}}
+            id="btn-farmer-new-report"
+            onClick={() => navigate('/field-report')}
             style={{
-              background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)',
-              borderRadius: '99px', color: '#f87171',
+              background: 'rgba(93,112,82,0.25)', border: '1px solid rgba(134,239,172,0.3)',
+              borderRadius: '99px', color: '#86efac',
               fontSize: '0.7rem', fontWeight: 800,
               padding: '0.3rem 0.75rem', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '0.3rem',
             }}
           >
-            <Bell style={{ width: '0.75rem', height: '0.75rem' }} /> 1 Alert
+            <PlusCircle style={{ width: '0.75rem', height: '0.75rem' }} /> New Report
+          </button>
+          {/* Logout */}
+          <button
+            id="btn-farmer-logout"
+            onClick={handleLogout}
+            title="Sign out"
+            style={{
+              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: '99px', color: '#f87171',
+              fontSize: '0.7rem', fontWeight: 800,
+              padding: '0.3rem 0.625rem', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '0.3rem',
+            }}
+          >
+            <LogOut style={{ width: '0.75rem', height: '0.75rem' }} /> Sign out
           </button>
         </div>
       </div>

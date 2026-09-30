@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle, MapPin, Bell, ChevronRight,
   Zap, Activity, Globe, Building2, RefreshCw,
-  Wifi, WifiOff, Shield, Syringe, TrendingDown, TrendingUp,
-  ArrowUpRight, CheckCircle2, BarChart3, Users, Radio,
+  Wifi, WifiOff, Shield, Syringe,
+  ArrowUpRight, BarChart3, Users, Radio, LogOut, ClipboardList,
 } from 'lucide-react'
 import { useCaseStore } from '../hooks/useCaseStore'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
@@ -171,9 +171,14 @@ function CampaignCard({ campaign }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function DVODashboard() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { casesByRisk: localCases } = useCaseStore()
   const { isOnline } = useOnlineStatus()
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   const [liveCases, setLiveCases] = useState(null)
   const [liveError, setLiveError] = useState(false)
@@ -255,6 +260,18 @@ export default function DVODashboard() {
               <RefreshCw style={{ width: '0.875rem', height: '0.875rem', color: '#78786c', animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             </button>
             <button
+              onClick={() => navigate('/field-report')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.375rem',
+                padding: '0.45rem 0.75rem', borderRadius: '0.625rem',
+                background: 'rgba(93,112,82,0.1)', border: '1px solid rgba(93,112,82,0.25)',
+                color: '#5d7052', fontWeight: 800, fontSize: '0.72rem', cursor: 'pointer',
+              }}
+            >
+              <ClipboardList style={{ width: '0.75rem', height: '0.75rem' }} />
+              File Report
+            </button>
+            <button
               onClick={() => navigate('/actions')}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.375rem',
@@ -265,6 +282,20 @@ export default function DVODashboard() {
             >
               <Zap style={{ width: '0.75rem', height: '0.75rem' }} />
               Command Actions
+            </button>
+            <button
+              id="btn-dvo-logout"
+              onClick={handleLogout}
+              title="Sign out"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.375rem',
+                padding: '0.45rem 0.625rem', borderRadius: '0.625rem',
+                background: 'rgba(168,84,72,0.08)', border: '1px solid rgba(168,84,72,0.2)',
+                color: '#a85448', fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer',
+              }}
+            >
+              <LogOut style={{ width: '0.75rem', height: '0.75rem' }} />
+              Sign out
             </button>
           </div>
         </div>

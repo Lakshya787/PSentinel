@@ -26,6 +26,7 @@ const NAV_BY_ROLE = {
     { to: '/alerts',       icon: Bell,            label: 'Alerts',       desc: 'District-wide alerts' },
     { to: '/cases/all',    icon: FolderOpen,      label: 'All Cases',    desc: 'District case ledger' },
     { to: '/actions',      icon: Zap,             label: 'Actions',      desc: 'Response & containment' },
+    { to: '/field-report', icon: PlusCircle,      label: 'File Report',  desc: 'Submit a field report' },
   ],
 }
 
