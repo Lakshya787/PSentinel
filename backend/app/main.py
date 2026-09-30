@@ -22,6 +22,7 @@ from app.repositories import cases as case_repo
 from app.routers.auth import router as auth_router
 from app.routers.cases import router as cases_router
 from app.routers.health import router as health_router
+from app.routers.rag import router as rag_router
 from app.routers.reports import router as reports_router
 from app.routers.risk import router as risk_router
 from app.routers.spatial import router as spatial_router
@@ -114,6 +115,15 @@ async def lifespan(app: FastAPI):
     set_models(if_model, ewma_model)
 
     logger.info(f"=== ML Engine ready — trained on {len(enriched)} cases ===")
+
+    # 4. Seed RAG knowledge base (async, non-blocking on failure)
+    try:
+        from app.services.rag_service import seed_knowledge_base
+        seeded = seed_knowledge_base(force=False)
+        logger.info(f"=== RAG Knowledge Base: {seeded} documents indexed ===")
+    except Exception as exc:
+        logger.warning(f"RAG seeding skipped: {exc} (set GEMINI_API_KEY to enable)")
+
     yield
     logger.info("Pashu Sentinel shutting down.")
 
@@ -147,3 +157,4 @@ app.include_router(reports_router)
 app.include_router(cases_router)
 app.include_router(risk_router)
 app.include_router(spatial_router)
+app.include_router(rag_router)

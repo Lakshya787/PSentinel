@@ -11,6 +11,7 @@ import CasesListPage from './pages/CasesListPage'
 import LabPage from './pages/LabPage'
 import AlertsPage from './pages/AlertsPage'
 import ActionsPage from './pages/ActionsPage'
+import VetChatWidget from './components/VetChatWidget'
 
 // ─── ProtectedRoute ───────────────────────────────────────────────────────────
 // Redirects to /login if unauthenticated.
@@ -21,17 +22,22 @@ function ProtectedRoute({ children, roles }) {
   if (!user) return <Navigate to="/login" replace />
 
   if (roles && !roles.includes(user.role)) {
-    // FARMER goes back to field report; others to dashboard
-    return <Navigate to={user.role === 'FARMER' ? '/field-report' : '/dashboard'} replace />
+    // Send each role to their own home page
+    if (user.role === 'FARMER') return <Navigate to="/field-report" replace />
+    if (user.role === 'VET')    return <Navigate to="/dashboard" replace />
+    if (user.role === 'DVO')    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/login" replace />
   }
 
   return children
 }
 
-// ─── Root redirect ────────────────────────────────────────────────────────────
-// Default route '/' always lands directly on the Login Page.
-function RootRedirect() {
-  return <Navigate to="/login" replace />
+// ─── Role-based default landing page ────────────────────────────────────────
+function RoleHome() {
+  const { user } = useAuth()
+  if (!user) return <Navigate to="/login" replace />
+  if (user.role === 'FARMER') return <Navigate to="/field-report" replace />
+  return <Navigate to="/dashboard" replace />
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -42,10 +48,11 @@ function AppRoutes() {
         {/* Auth */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Root — role-based redirect */}
-        <Route path="/" element={<RootRedirect />} />
+        {/* Root — send to login if not authed, otherwise role home */}
+        <Route path="/" element={<RoleHome />} />
 
-        {/* Field report — FARMER (and VET/DVO can also submit) */}
+        {/* ── FARMER routes ─────────────────────────────────────────────── */}
+        {/* Field report — all roles can submit */}
         <Route
           path="/field-report"
           element={
@@ -55,21 +62,40 @@ function AppRoutes() {
           }
         />
 
-        {/* App layout shell for Dashboard, Cases, Map, Alerts, Actions */}
+        {/* ── VET + DVO routes (AppLayout shell) ───────────────────────── */}
         <Route
           element={
-            <ProtectedRoute roles={['FARMER', 'VET', 'DVO']}>
+            <ProtectedRoute roles={['VET', 'DVO']}>
               <AppLayout />
             </ProtectedRoute>
           }
         >
+          {/* Shared by VET + DVO */}
           <Route path="/dashboard"  element={<Dashboard />} />
           <Route path="/map"        element={<MapPage />} />
           <Route path="/cases/all"  element={<CasesListPage />} />
           <Route path="/cases/:id"  element={<CaseDetail />} />
-          <Route path="/lab"        element={<LabPage />} />
           <Route path="/alerts"     element={<AlertsPage />} />
-          <Route path="/actions"    element={<ActionsPage />} />
+
+          {/* VET only */}
+          <Route
+            path="/lab"
+            element={
+              <ProtectedRoute roles={['VET']}>
+                <LabPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* DVO only */}
+          <Route
+            path="/actions"
+            element={
+              <ProtectedRoute roles={['DVO']}>
+                <ActionsPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* Fallback */}
@@ -83,6 +109,7 @@ export default function App() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <VetChatWidget />
     </AuthProvider>
   )
 }
