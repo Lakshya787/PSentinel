@@ -1,9 +1,17 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  // Load .env variables for the current mode
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiUrl = env.VITE_API_URL || 'http://localhost:8000'
+  // Build a regex that matches the configured API URL (used by PWA runtime caching)
+  const apiUrlEscaped = apiUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const apiUrlPattern = new RegExp(`^${apiUrlEscaped}/.*`, 'i')
+
+  return {
   plugins: [
     react(),
     VitePWA({
@@ -34,7 +42,7 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^http:\/\/localhost:8000\/.*/i,
+            urlPattern: apiUrlPattern,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'pashu-api-cache',
@@ -135,14 +143,16 @@ export default defineConfig({
     hmr: {
       overlay: true,
     },
+    // Proxy only used in dev (Vite dev server); in production the frontend
+    // is served as a static build and must point to VITE_API_URL directly.
     proxy: {
-      '/auth':       'http://127.0.0.1:8000',
-      '/cases':      'http://127.0.0.1:8000',
-      '/reports':    'http://127.0.0.1:8000',
-      '/risk':       'http://127.0.0.1:8000',
-      '/clusters':   'http://127.0.0.1:8000',
-      '/neighbours': 'http://127.0.0.1:8000',
-      '/health':     'http://127.0.0.1:8000',
+      '/auth':       apiUrl,
+      '/cases':      apiUrl,
+      '/reports':    apiUrl,
+      '/risk':       apiUrl,
+      '/clusters':   apiUrl,
+      '/neighbours': apiUrl,
+      '/health':     apiUrl,
     },
   },
 
@@ -150,5 +160,5 @@ export default defineConfig({
   esbuild: {
     logOverride: { 'this-is-undefined-in-esm': 'silent' },
   },
+  }
 })
-

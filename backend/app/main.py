@@ -9,6 +9,7 @@ SQLite edition:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from copy import deepcopy
@@ -142,13 +143,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|172\..*|192\..*)(:\d+)?$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ─── CORS configuration ───────────────────────────────────────────────────────
+# In production, set CORS_ORIGINS env var as a comma-separated list of allowed
+# frontend URLs, e.g.:
+#   CORS_ORIGINS=https://pashu.example.com,https://www.pashu.example.com
+# When not set, falls back to localhost / private IP for local development.
+_cors_env = os.getenv("CORS_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Development fallback — allow localhost and RFC-1918 private addresses
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|172\..*|192\..*)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
 app.include_router(health_router)
