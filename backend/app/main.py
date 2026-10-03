@@ -1,14 +1,15 @@
 """
 app/main.py — Pashu Sentinel FastAPI application factory & entry point.
 
-SQLite edition:
-  - Tables created automatically at startup via Base.metadata.create_all()
+PostgreSQL / Supabase edition:
+  - Schema managed by Alembic migrations (run: alembic upgrade head before starting)
   - Demo villages seeded on first run (Pune / Maharashtra region)
   - ML models trained from DB on startup
 """
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from copy import deepcopy
@@ -17,7 +18,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.session import Base, engine, get_db
+from app.db.session import get_db
 from app.repositories import cases as case_repo
 from app.routers.auth import router as auth_router
 from app.routers.cases import router as cases_router
@@ -36,6 +37,28 @@ from app.services.risk_engine import calculate_risk
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pashu.api")
+
+
+def _run_migrations():
+    """Run Alembic migrations programmatically at startup.
+
+    Runs inside the app process so it always uses the same Python
+    environment as the app — no PATH / venv activation issues on Render.
+    Safe to call on every startup: Alembic is idempotent (skips already-
+    applied revisions).
+    """
+    try:
+        import os
+        from alembic import command
+        from alembic.config import Config
+
+        # alembic.ini lives one directory above this file (i.e. backend/)
+        ini_path = os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
+        cfg = Config(os.path.abspath(ini_path))
+        command.upgrade(cfg, "head")
+        logger.info("=== Alembic migrations: up to date ===")
+    except Exception as exc:
+        logger.warning(f"Migration skipped / failed: {exc}")
 
 # ─── Demo village seed data (Pune district, Maharashtra) ─────────────────────
 _DEMO_VILLAGES = [
@@ -83,13 +106,12 @@ async def lifespan(app: FastAPI):
       2. Seed demo villages if empty
       3. Train ML models from existing DB reports
     """
-    logger.info("=== Pashu Sentinel — SQLite Startup ===")
+    logger.info("=== Pashu Sentinel — PostgreSQL/Supabase Startup ===")
 
-    # 1. Create tables
-    Base.metadata.create_all(bind=engine)
-    logger.info("SQLite tables created / verified.")
+    # 0. Run Alembic migrations (idempotent — safe every restart)
+    _run_migrations()
 
-    # 2. Seed villages
+    # 1. Seed villages (tables already created by migrations above)
     try:
         db = next(get_db())
         _seed_villages(db)
@@ -99,7 +121,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"DB issue at startup ({exc}); continuing with empty seed.")
         seed_cases = []
 
-    # 3. Train ML models
+    # 2. Train ML models
     enriched = []
     for c in seed_cases:
         ec = deepcopy(c)
@@ -142,13 +164,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|172\..*|192\..*)(:\d+)?$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ─── CORS configuration ───────────────────────────────────────────────────────
+# In production, set CORS_ORIGINS env var as a comma-separated list of allowed
+# frontend URLs, e.g.:
+#   CORS_ORIGINS=https://pashu.example.com,https://www.pashu.example.com
+# When not set, falls back to localhost / private IP for local development.
+_cors_env = os.getenv("CORS_ORIGINS", "").strip()
+if _cors_env:
+    _cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Development fallback — allow localhost and RFC-1918 private addresses
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|172\..*|192\..*)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # ─── Include Routers ──────────────────────────────────────────────────────────
 app.include_router(health_router)

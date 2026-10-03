@@ -1,5 +1,5 @@
 """
-app/models/user.py — User ORM model (SQLite edition).
+app/models/user.py — User ORM model (PostgreSQL edition).
 
 Auth user — phone + bcrypt password + role.
 No OTP / email verification (MVP).
@@ -21,4 +21,4 @@ class User(Base):
     phone         = Column(String(20), nullable=False, unique=True)
     password_hash = Column(String(128), nullable=False)
     role          = Column(String(20), nullable=False, default="FARMER")  # FARMER | VET | DVO
-    created_at    = Column(DateTime, default=_now)
+    created_at    = Column(DateTime(timezone=True), default=_now)

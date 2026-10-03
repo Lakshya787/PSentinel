@@ -1,7 +1,7 @@
 """0002_add_users — users table for phone+password MVP auth.
 
 Adds:
-  users (id UUID PK, name, phone UNIQUE, password_hash, role, created_at)
+  users (id String(36) PK, name, phone UNIQUE, password_hash, role, created_at)
 
 Roles: FARMER | VET | DVO
 No OTP / email verification — MVP only.
@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 revision = "0002"
 down_revision = "0001"
@@ -21,7 +20,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "users",
-        sa.Column("id",            PG_UUID(as_uuid=False), primary_key=True),
+        sa.Column("id",            sa.String(36),  primary_key=True),
         sa.Column("name",          sa.String(120), nullable=False),
         sa.Column("phone",         sa.String(20),  nullable=False),
         sa.Column("password_hash", sa.String(128), nullable=False),

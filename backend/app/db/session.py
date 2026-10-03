@@ -1,48 +1,36 @@
 """
 app/db/session.py — SQLAlchemy engine, session factory, Base, and FastAPI dependency.
 
-SQLite edition:
-  - Uses StaticPool so a single in-process connection is reused (safe for sync uvicorn)
-  - check_same_thread=False required for SQLite when used with FastAPI thread pool
-  - Tables are created via Base.metadata.create_all() in app/main.py lifespan
+PostgreSQL / Supabase edition:
+  - Uses psycopg3 driver (psycopg[binary]) via DATABASE_URL = postgresql+psycopg://...
+  - Connection pool: QueuePool (default) in production, NullPool for Alembic migrations.
+  - Tables are managed by Alembic migrations (run: alembic upgrade head).
 
 All other modules should import from here:
     from app.db.session import Base, get_db, engine
 """
 from __future__ import annotations
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.core.config import settings
 
 # ─── Engine ───────────────────────────────────────────────────────────────────
 _url = settings.resolved_database_url
 
-# SQLite-specific connection args
-_connect_args = {}
-_poolclass = None
-
-if _url.startswith("sqlite"):
-    _connect_args = {"check_same_thread": False}
-    _poolclass = StaticPool
+# In production, expand the pool; keep it lean in development.
+_pool_kwargs = (
+    {"pool_size": 10, "max_overflow": 20, "pool_pre_ping": True}
+    if settings.ENVIRONMENT == "production"
+    else {"pool_pre_ping": True}
+)
 
 engine = create_engine(
     _url,
-    connect_args=_connect_args,
-    **({"poolclass": _poolclass} if _poolclass else {}),
     echo=settings.DB_ECHO,
+    **_pool_kwargs,
 )
-
-# Enable WAL mode + foreign keys for SQLite
-if _url.startswith("sqlite"):
-    @event.listens_for(engine, "connect")
-    def _set_sqlite_pragma(dbapi_conn, _connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
 
 # ─── Session factory ──────────────────────────────────────────────────────────
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

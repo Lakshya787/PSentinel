@@ -5,6 +5,9 @@ import Home from './pages/Home'
 import LoginPage from './pages/LoginPage'
 import FieldReport from './pages/FieldReport'
 import Dashboard from './pages/Dashboard'
+import VetDashboard from './pages/VetDashboard'
+import DVODashboard from './pages/DVODashboard'
+import FarmerDashboard from './pages/FarmerDashboard'
 import MapPage from './pages/MapPage'
 import CaseDetail from './pages/CaseDetail'
 import CasesListPage from './pages/CasesListPage'
@@ -14,30 +17,29 @@ import ActionsPage from './pages/ActionsPage'
 import VetChatWidget from './components/VetChatWidget'
 
 // ─── ProtectedRoute ───────────────────────────────────────────────────────────
-// Redirects to /login if unauthenticated.
-// Redirects to role-appropriate default if the user's role isn't allowed.
 function ProtectedRoute({ children, roles }) {
   const { user } = useAuth()
 
   if (!user) return <Navigate to="/login" replace />
 
   if (roles && !roles.includes(user.role)) {
-    // Send each role to their own home page
-    if (user.role === 'FARMER') return <Navigate to="/field-report" replace />
-    if (user.role === 'VET')    return <Navigate to="/dashboard" replace />
-    if (user.role === 'DVO')    return <Navigate to="/dashboard" replace />
+    if (user.role === 'FARMER') return <Navigate to="/farmer" replace />
+    if (user.role === 'VET')    return <Navigate to="/vet" replace />
+    if (user.role === 'DVO')    return <Navigate to="/dvo" replace />
     return <Navigate to="/login" replace />
   }
 
   return children
 }
 
-// ─── Role-based default landing page ────────────────────────────────────────
+// ─── Role-based default landing page ─────────────────────────────────────────
 function RoleHome() {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
-  if (user.role === 'FARMER') return <Navigate to="/field-report" replace />
-  return <Navigate to="/dashboard" replace />
+  if (user.role === 'FARMER') return <Navigate to="/farmer" replace />
+  if (user.role === 'VET')    return <Navigate to="/vet" replace />
+  if (user.role === 'DVO')    return <Navigate to="/dvo" replace />
+  return <Navigate to="/login" replace />
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
@@ -51,7 +53,17 @@ function AppRoutes() {
         {/* Root — send to login if not authed, otherwise role home */}
         <Route path="/" element={<RoleHome />} />
 
-        {/* ── FARMER routes ─────────────────────────────────────────────── */}
+        {/* ── FARMER routes ──────────────────────────────────────────────── */}
+        {/* Farmer home dashboard */}
+        <Route
+          path="/farmer"
+          element={
+            <ProtectedRoute roles={['FARMER']}>
+              <FarmerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Field report — all roles can submit */}
         <Route
           path="/field-report"
@@ -62,40 +74,39 @@ function AppRoutes() {
           }
         />
 
-        {/* ── VET + DVO routes (AppLayout shell) ───────────────────────── */}
+        {/* ── VET routes (AppLayout shell) ───────────────────────────────── */}
         <Route
           element={
-            <ProtectedRoute roles={['VET', 'DVO']}>
+            <ProtectedRoute roles={['VET']}>
               <AppLayout />
             </ProtectedRoute>
           }
         >
-          {/* Shared by VET + DVO */}
-          <Route path="/dashboard"  element={<Dashboard />} />
+          <Route path="/vet"        element={<VetDashboard />} />
+          {/* Keep /dashboard for backwards-compat */}
+          <Route path="/dashboard"  element={<VetDashboard />} />
+          <Route path="/cases/all"  element={<CasesListPage />} />
+          <Route path="/cases/:id"  element={<CaseDetail />} />
+          <Route path="/lab"        element={<LabPage />} />
+          <Route path="/alerts"     element={<AlertsPage />} />
+          <Route path="/map"        element={<MapPage />} />
+        </Route>
+
+        {/* ── DVO routes (AppLayout shell) ───────────────────────────────── */}
+        <Route
+          element={
+            <ProtectedRoute roles={['DVO']}>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dvo"        element={<DVODashboard />} />
           <Route path="/map"        element={<MapPage />} />
           <Route path="/cases/all"  element={<CasesListPage />} />
           <Route path="/cases/:id"  element={<CaseDetail />} />
           <Route path="/alerts"     element={<AlertsPage />} />
-
-          {/* VET only */}
-          <Route
-            path="/lab"
-            element={
-              <ProtectedRoute roles={['VET']}>
-                <LabPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* DVO only */}
-          <Route
-            path="/actions"
-            element={
-              <ProtectedRoute roles={['DVO']}>
-                <ActionsPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/actions"    element={<ActionsPage />} />
+          <Route path="/field-report" element={<FieldReport />} />
         </Route>
 
         {/* Fallback */}

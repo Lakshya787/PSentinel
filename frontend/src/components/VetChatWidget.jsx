@@ -93,10 +93,7 @@ export default function VetChatWidget() {
     }
   }, [open])
 
-  // Only show when authenticated
-  if (!user || !token) return null
-
-  // ── Send message ─────────────────────────────────────────────────────────
+  // ── Send message — MUST be above early return to satisfy Rules of Hooks ───
   const sendMessage = useCallback(async (query) => {
     const q = (query || input).trim()
     if (!q || loading) return
@@ -166,6 +163,9 @@ export default function VetChatWidget() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Guard: only show widget when authenticated (placed after ALL hooks)
+  if (!user || !token) return null
+
   return (
     <>
       {/* ── FAB Button ─────────────────────────────────────────────────── */}

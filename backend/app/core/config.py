@@ -1,7 +1,9 @@
 """
 app/core/config.py — Application settings via plain class + os.getenv.
 
-SQLite edition: DATABASE_URL defaults to a local .db file.
+PostgreSQL / Supabase edition:
+  DATABASE_URL must be set to a psycopg3-compatible PostgreSQL URL, e.g.:
+    postgresql+psycopg://postgres.PROJECTREF:PASSWORD@aws-X.pooler.supabase.com:5432/postgres
 All values are read from environment variables (backend/.env).
 Provides a single `settings` singleton imported throughout the app.
 """
@@ -14,9 +16,6 @@ from dotenv import load_dotenv
 
 # Load .env once at import time (no-op when vars already set by shell)
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-
-# Resolve the path to the backend directory (where the .db file lives)
-_BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings:
@@ -31,7 +30,7 @@ class Settings:
     APP_VERSION: str = "2.0.0"
     APP_DESCRIPTION: str = (
         "Smart livestock disease early-warning platform.\n\n"
-        "**Database**: SQLite (zero-server, single .db file).\n"
+        "**Database**: PostgreSQL + PostGIS (Supabase).\n"
         "**Intelligence Engine** (ref.md §10):\n"
         "- Tier 1: Isolation Forest case-level triage\n"
         "- Tier 2: EWMA + Noufaily-Farrington temporal aberration\n"
@@ -61,16 +60,27 @@ class Settings:
 
     @property
     def resolved_database_url(self) -> str:
-        """Return the SQLAlchemy database URL.
+        """Return the PostgreSQL database URL.
 
-        Priority:
-        1. DATABASE_URL env var (set explicitly)
-        2. Default: SQLite file at <backend>/pashu_sentinel.db
+        Normalises bare `postgresql://` → `postgresql+psycopg://` so the
+        psycopg3 driver is used in all environments.
+
+        Raises:
+            RuntimeError: if DATABASE_URL is not set.
         """
         url = self.DATABASE_URL
         if not url:
-            db_path = _BACKEND_DIR / "pashu_sentinel.db"
-            url = f"sqlite:///{db_path}"
+            raise RuntimeError(
+                "DATABASE_URL is not set. "
+                "Add it to backend/.env (copy from .env.example) or your "
+                "hosting platform's environment variables.\n"
+                "Example (Supabase session pooler):\n"
+                "  DATABASE_URL=postgresql+psycopg://postgres.PROJECTREF:PASSWORD"
+                "@aws-X-REGION.pooler.supabase.com:5432/postgres"
+            )
+        # Normalise: bare postgresql:// → postgresql+psycopg://
+        if url.startswith("postgresql://"):
+            url = "postgresql+psycopg" + url[len("postgresql"):]
         return url
 
 

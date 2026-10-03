@@ -1,7 +1,7 @@
 """
 app/routers/health.py — Health check & Syndromic definitions endpoints.
 
-SQLite edition: replaced PostGIS-specific DB check with SQLite-compatible query.
+PostgreSQL / Supabase edition.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def health():
         "status":  "ok",
         "service": "pashu-sentinel-api",
         "version": "2.0.0",
-        "database": "sqlite",
+        "database": "postgresql",
         "ml_engine": {
             "isolation_forest": if_model is not None and if_model._trained,
             "ewma_farrington":  ewma_model is not None,
@@ -33,17 +33,16 @@ def health():
 
 @router.get("/health/db")
 def health_db(db: Session = Depends(get_db)):
-    """SELECT 1 liveness check + SQLite table count."""
+    """SELECT 1 liveness check + PostgreSQL table count."""
     try:
         db.execute(text("SELECT 1"))
-        # SQLite: count tables from sqlite_master
         tables = db.execute(
-            text("SELECT count(*) FROM sqlite_master WHERE type='table'")
+            text("SELECT count(*) FROM pg_tables WHERE schemaname = 'public'")
         ).scalar()
         return {
-            "status":       "ok",
-            "database":     "sqlite",
-            "table_count":  int(tables or 0),
+            "status":      "ok",
+            "database":    "postgresql",
+            "table_count": int(tables or 0),
         }
     except Exception as exc:
         raise HTTPException(503, f"DB unreachable: {exc}")

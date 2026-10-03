@@ -1,9 +1,10 @@
 """
-app/models/village.py — Village ORM model (SQLite edition).
+app/models/village.py — Village ORM model (PostgreSQL edition).
 
-Spatial point stored as two plain Float columns (lat, lng) instead of PostGIS geometry.
+Spatial point stored as two plain Float columns (lat, lng).
 Haversine distance computed in Python (app/repositories/spatial.py).
 """
+
 from __future__ import annotations
 
 from sqlalchemy import Column, Float, Integer, Numeric, String

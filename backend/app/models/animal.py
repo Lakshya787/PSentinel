@@ -1,6 +1,7 @@
 """
-app/models/animal.py — Animal and Vaccination ORM models (SQLite edition).
+app/models/animal.py — Animal and Vaccination ORM models (PostgreSQL edition).
 """
+
 from __future__ import annotations
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, String

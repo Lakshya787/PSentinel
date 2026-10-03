@@ -1,11 +1,9 @@
 """
-app/models/report.py — Report (central disease-report) ORM model (SQLite edition).
+app/models/report.py — Report (central disease-report) ORM model (PostgreSQL edition).
 
 Central disease report row. Denormalises key animal/village fields for
 fast API reads without joins. Spatial point stored as lat + lng Float columns
-(replaces PostGIS geometry — Haversine computed in Python).
-
-JSONB columns replaced with Text (JSON-encoded strings).
+(Haversine computed in Python). JSONB used for symptoms, risk_factors, etc.
 idempotency_key UNIQUE prevents duplicate rows when the frontend retries
 a queued Background Sync request (ref.md §15).
 """
@@ -14,6 +12,7 @@ from __future__ import annotations
 from sqlalchemy import (
     Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -47,29 +46,29 @@ class Report(Base):
     district         = Column(String(120))
     state            = Column(String(120), default="Maharashtra")
 
-    # ── Spatial point (replaces PostGIS geometry) ──────────────────────────────
+    # ── Spatial point (Haversine computed in Python) ───────────────────────────
     lat              = Column(Float)   # WGS-84 latitude
     lng              = Column(Float)   # WGS-84 longitude
 
     # ── Clinical fields ────────────────────────────────────────────────────────
     syndrome         = Column(String(120))
-    symptoms         = Column(Text, default="[]")      # JSON-encoded list
+    symptoms         = Column(JSONB, default=list)      # native list
     mortality        = Column(Integer, default=0)
     affected_animals = Column(Integer, default=1)
-    photos           = Column(Text, default="[]")      # JSON-encoded list
+    photos           = Column(JSONB, default=list)      # native list
 
     # ── Workflow fields ────────────────────────────────────────────────────────
     reported_by      = Column(String(120))
     assigned_vet     = Column(String(80))
     status           = Column(String(40), default="REPORTED")
-    risk_factors     = Column(Text)         # JSON: {clinical, vaccination, environmental, spatial}
+    risk_factors     = Column(JSONB)         # {clinical, vaccination, environmental, spatial}
     notes            = Column(Text, default="")
-    tier1_triage     = Column(Text)         # JSON: Isolation Forest result
+    tier1_triage     = Column(JSONB)         # Isolation Forest result
 
     # ── Timestamps ────────────────────────────────────────────────────────────
-    created_at_client = Column(DateTime)   # device clock
-    received_at       = Column(DateTime, default=_now)
-    updated_at        = Column(DateTime, default=_now, onupdate=_now)
+    created_at_client = Column(DateTime(timezone=True))   # device clock
+    received_at       = Column(DateTime(timezone=True), default=_now)
+    updated_at        = Column(DateTime(timezone=True), default=_now, onupdate=_now)
 
     # ── Relationships ──────────────────────────────────────────────────────────
     animal            = relationship("Animal", back_populates="reports")
