@@ -153,6 +153,7 @@ export default defineConfig(({ mode }) => {
       '/clusters':   apiUrl,
       '/neighbours': apiUrl,
       '/health':     apiUrl,
+      '/rag':        apiUrl,
     },
   },
 
