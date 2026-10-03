@@ -38,6 +38,28 @@ from app.services.risk_engine import calculate_risk
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("pashu.api")
 
+
+def _run_migrations():
+    """Run Alembic migrations programmatically at startup.
+
+    Runs inside the app process so it always uses the same Python
+    environment as the app — no PATH / venv activation issues on Render.
+    Safe to call on every startup: Alembic is idempotent (skips already-
+    applied revisions).
+    """
+    try:
+        import os
+        from alembic import command
+        from alembic.config import Config
+
+        # alembic.ini lives one directory above this file (i.e. backend/)
+        ini_path = os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
+        cfg = Config(os.path.abspath(ini_path))
+        command.upgrade(cfg, "head")
+        logger.info("=== Alembic migrations: up to date ===")
+    except Exception as exc:
+        logger.warning(f"Migration skipped / failed: {exc}")
+
 # ─── Demo village seed data (Pune district, Maharashtra) ─────────────────────
 _DEMO_VILLAGES = [
     {"name": "Uruli Kanchan", "taluk": "Haveli",   "district": "Pune",    "state": "Maharashtra", "lat": 18.4835, "lng": 74.0741, "livestock_count": 1200, "fmd_vax_coverage": 0.72},
@@ -86,7 +108,10 @@ async def lifespan(app: FastAPI):
     """
     logger.info("=== Pashu Sentinel — PostgreSQL/Supabase Startup ===")
 
-    # 1. Seed villages (tables already created by `alembic upgrade head`)
+    # 0. Run Alembic migrations (idempotent — safe every restart)
+    _run_migrations()
+
+    # 1. Seed villages (tables already created by migrations above)
     try:
         db = next(get_db())
         _seed_villages(db)
