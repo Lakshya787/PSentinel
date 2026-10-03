@@ -1,18 +1,16 @@
 """
 app/repositories/cases.py — Case (Report) CRUD using SQLAlchemy ORM.
 
-SQLite edition:
-  - Replaces raw PostGIS SQL with ORM-level operations
-  - Idempotent insert: check-by-idempotency_key then insert
-  - JSONB replaced with Text (json.loads / json.dumps)
-  - Geometry replaced with plain lat/lng Float fields
+PostgreSQL edition:
+  - JSONB columns return native Python dicts/lists — no json.loads/dumps needed.
+  - Geometry stored as plain lat/lng Float fields; Haversine in Python.
+  - Idempotent insert: check-by-idempotency_key then insert.
 
 report_to_dict() converts ORM rows → the exact JSON shape all existing API
 routes return — no frontend response-shape changes required.
 """
 from __future__ import annotations
 
-import json
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -29,37 +27,15 @@ LIFECYCLE = [
 ]
 
 
-# ─── JSON helpers ─────────────────────────────────────────────────────────────
-
-def _jloads(val) -> list | dict:
-    """Safely parse a JSON Text column value."""
-    if val is None:
-        return None
-    if isinstance(val, (list, dict)):
-        return val   # already decoded (e.g. in tests)
-    try:
-        return json.loads(val)
-    except (TypeError, ValueError):
-        return val
-
-
-def _jdumps(val) -> str:
-    """Encode a Python object to a JSON string for Text columns."""
-    if val is None:
-        return None
-    if isinstance(val, str):
-        return val   # already encoded
-    return json.dumps(val)
-
-
 # ─── Response serialiser ──────────────────────────────────────────────────────
 
 def report_to_dict(r: Report) -> dict:
     """
     Convert ORM Report row → the exact dict shape all existing API routes return.
     No frontend response-shape changes required.
+    JSONB columns are already native dicts/lists — no json.loads needed.
     """
-    rf = _jloads(r.risk_factors) or {}
+    rf = r.risk_factors or {}
     risk = calculate_risk(**rf) if len(rf) == 4 else None
 
     return {
@@ -74,7 +50,7 @@ def report_to_dict(r: Report) -> dict:
         "state":            r.state,
         "lat":              r.lat,
         "lng":              r.lng,
-        "symptoms":         _jloads(r.symptoms) or [],
+        "symptoms":         r.symptoms or [],
         "mortality":        r.mortality,
         "affected_animals": r.affected_animals,
         "reported_by":      r.reported_by,
@@ -89,7 +65,7 @@ def report_to_dict(r: Report) -> dict:
         ),
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         "notes":       r.notes or "",
-        "tier1_triage": _jloads(r.tier1_triage),
+        "tier1_triage": r.tier1_triage,
     }
 
 
@@ -163,15 +139,15 @@ def create_report(
         lat              = data.get("lat"),
         lng              = data.get("lng"),
         syndrome         = data.get("syndrome"),
-        symptoms         = _jdumps(data.get("symptoms", [])),
+        symptoms         = data.get("symptoms", []),       # JSONB — pass list directly
         mortality        = data.get("mortality", 0),
         affected_animals = data.get("affected_animals", 1),
         reported_by      = data.get("reported_by"),
         assigned_vet     = data.get("assigned_vet"),
         status           = data.get("status", "REPORTED"),
-        risk_factors     = _jdumps(data.get("risk_factors", {})),
+        risk_factors     = data.get("risk_factors", {}),   # JSONB — pass dict directly
         notes            = data.get("notes", ""),
-        tier1_triage     = _jdumps(tier1_result or {}),
+        tier1_triage     = tier1_result or {},             # JSONB — pass dict directly
         created_at_client= now,
         received_at      = now,
         updated_at       = now,
@@ -189,7 +165,7 @@ def create_report(
             report_id   = new_report.id,
             crs         = risk["score"],
             tier        = risk["level"],
-            factors     = _jdumps(rf),
+            factors     = rf,      # JSONB — pass dict directly
             computed_at = now,
         )
         db.add(ra)

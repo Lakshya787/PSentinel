@@ -1,8 +1,8 @@
 """
 app/main.py — Pashu Sentinel FastAPI application factory & entry point.
 
-SQLite edition:
-  - Tables created automatically at startup via Base.metadata.create_all()
+PostgreSQL / Supabase edition:
+  - Schema managed by Alembic migrations (run: alembic upgrade head before starting)
   - Demo villages seeded on first run (Pune / Maharashtra region)
   - ML models trained from DB on startup
 """
@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db.session import Base, engine, get_db
+from app.db.session import get_db
 from app.repositories import cases as case_repo
 from app.routers.auth import router as auth_router
 from app.routers.cases import router as cases_router
@@ -84,13 +84,9 @@ async def lifespan(app: FastAPI):
       2. Seed demo villages if empty
       3. Train ML models from existing DB reports
     """
-    logger.info("=== Pashu Sentinel — SQLite Startup ===")
+    logger.info("=== Pashu Sentinel — PostgreSQL/Supabase Startup ===")
 
-    # 1. Create tables
-    Base.metadata.create_all(bind=engine)
-    logger.info("SQLite tables created / verified.")
-
-    # 2. Seed villages
+    # 1. Seed villages (tables already created by `alembic upgrade head`)
     try:
         db = next(get_db())
         _seed_villages(db)
@@ -100,7 +96,7 @@ async def lifespan(app: FastAPI):
         logger.warning(f"DB issue at startup ({exc}); continuing with empty seed.")
         seed_cases = []
 
-    # 3. Train ML models
+    # 2. Train ML models
     enriched = []
     for c in seed_cases:
         ec = deepcopy(c)

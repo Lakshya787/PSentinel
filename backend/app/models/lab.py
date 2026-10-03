@@ -1,11 +1,10 @@
 """
-app/models/lab.py — LabReferral ORM model (SQLite edition).
-
-JSONB replaced with Text (JSON-encoded).
+app/models/lab.py — LabReferral ORM model (PostgreSQL edition).
 """
 from __future__ import annotations
 
 from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -17,9 +16,9 @@ class LabReferral(Base):
 
     id           = Column(String(36), primary_key=True, default=_uuid)
     report_id    = Column(String(36), ForeignKey("reports.id"), nullable=False, unique=True)
-    sample_types = Column(Text, default="[]")   # JSON-encoded list
+    sample_types = Column(JSONB, default=list)   # native list
     status       = Column(String(40), default="PENDING")
-    result       = Column(Text)                 # JSON-encoded result
-    result_at    = Column(DateTime)
+    result       = Column(JSONB)                 # native result dict
+    result_at    = Column(DateTime(timezone=True))
 
     report = relationship("Report", back_populates="lab_referral")

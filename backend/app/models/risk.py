@@ -1,12 +1,12 @@
 """
-app/models/risk.py — RiskAssessment ORM model (SQLite edition).
+app/models/risk.py — RiskAssessment ORM model (PostgreSQL edition).
 
 Persisted WLC composite risk score (ref.md §13). One per report.
-JSONB replaced with Text (JSON-encoded).
 """
 from __future__ import annotations
 
-from sqlalchemy import Column, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Numeric, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -20,7 +20,7 @@ class RiskAssessment(Base):
     report_id   = Column(String(36), ForeignKey("reports.id"), nullable=False, unique=True)
     crs         = Column(Numeric(5, 2))    # composite risk score 0–100
     tier        = Column(String(20))       # CRITICAL / HIGH / MEDIUM / LOW
-    factors     = Column(Text)             # JSON-encoded per-factor scores and weights
-    computed_at = Column(DateTime, default=_now)
+    factors     = Column(JSONB)            # per-factor scores and weights
+    computed_at = Column(DateTime(timezone=True), default=_now)
 
     report = relationship("Report", back_populates="risk_assessment")

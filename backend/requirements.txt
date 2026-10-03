@@ -1,28 +1,32 @@
-# ─── API Layer ────────────────────────────────────────────────────────────────
+﻿# --- API Layer ----------------------------------------------------------------
 fastapi
 uvicorn[standard]
 pydantic
 python-multipart
 
-# ─── ML / Intelligence Engine (ref.md §10, §23) ───────────────────────────────
-scikit-learn        # Isolation Forest (Tier 1 triage) + DBSCAN clustering
-scipy               # Farrington algorithm, statistical distributions
-numpy               # Feature transformation pipelines
-pandas              # Temporal aggregation for EWMA time series
+# --- ML / Intelligence Engine (ref.md §10, §23) ------------------------------
+scikit-learn
+scipy
+numpy
+pandas
 
-# ─── Database — SQLite via SQLAlchemy ─────────────────────────────────────────
-sqlalchemy>=2.0     # ORM + Core (sqlite3 driver is stdlib, no extra adapter needed)
-python-dotenv       # Load DATABASE_URL from .env without logging it
+# --- Database - PostgreSQL / PostGIS via SQLAlchemy --------------------------
+sqlalchemy>=2.0
+psycopg[binary]
+alembic
+geoalchemy2
+python-dotenv
+shapely
 
-# ─── Auth (MVP) ────────────────────────────────────────────────────────────────
-passlib[bcrypt]     # Password hashing (bcrypt)
-bcrypt==4.0.1       # Pinned: bcrypt>=5 breaks passlib 1.7.x (no __about__ attr)
-python-jose[cryptography]  # HS256 JWT signing + verification
+# --- Auth (MVP) ---------------------------------------------------------------
+passlib[bcrypt]
+bcrypt==4.0.1
+python-jose[cryptography]
 
-# ─── RAG — Veterinary Knowledge System (ref.md §14) ──────────────────────────
-chromadb            # Local vector store (persistent, cosine similarity)
-groq                # Groq LLM API — llama-3.3-70b-versatile (generation)
+# --- RAG - Veterinary Knowledge System (ref.md §14) --------------------------
+chromadb
+groq
 
-# ─── Testing / Dev ────────────────────────────────────────────────────────────
-httpx               # Needed by FastAPI TestClient
+# --- Testing / Dev ------------------------------------------------------------
+httpx
 pytest
